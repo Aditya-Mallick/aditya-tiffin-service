@@ -8,7 +8,7 @@ export default function DeliveryBanner() {
       <div className="max-w-5xl mx-auto flex flex-wrap items-center justify-center gap-x-6 gap-y-1 text-center">
         <span className="flex items-center gap-1.5">
           <Truck size={13} />
-          {t('Free home delivery on all tiffin orders', 'सभी टिफिन ऑर्डर पर मुफ्त होम डिलीवरी')}
+          {t('Free home delivery · 3 times daily', 'मुफ्त होम डिलीवरी · दिन में तीन बार')}
         </span>
         <span className="flex items-center gap-1.5 text-green-200">
           <Info size={13} />

@@ -45,10 +45,20 @@ export default function ContactSection() {
                 <Clock size={17} className="text-gold mt-0.5 flex-shrink-0" />
                 <div>
                   <p className="text-xs text-gray-400 font-medium mb-0.5">{t('Delivery Hours', 'डिलीवरी समय')}</p>
-                  <p className="text-gray-800 text-sm">
-                    {t('Lunch: 12:00 – 2:00 PM', 'दोपहर: 12:00 – 2:00 बजे')}
-                    <br />
-                    {t('Dinner: 7:00 – 9:00 PM', 'रात: 7:00 – 9:00 बजे')}
+                  <p className="text-gray-800 text-sm space-y-0.5">
+                    <span className="flex items-center gap-2">
+                      <span className="w-1.5 h-1.5 rounded-full bg-saffron inline-block flex-shrink-0" />
+                      {t('Morning: 8:30 – 10:00 AM', 'सुबह: 8:30 – 10:00 बजे')}
+                      <span className="text-xs text-gray-400">{t('(office tiffin)', '(ऑफिस टिफिन)')}</span>
+                    </span>
+                    <span className="flex items-center gap-2 mt-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-tgreen inline-block flex-shrink-0" />
+                      {t('Lunch: 12:00 – 2:00 PM', 'दोपहर: 12:00 – 2:00 बजे')}
+                    </span>
+                    <span className="flex items-center gap-2 mt-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-gray-400 inline-block flex-shrink-0" />
+                      {t('Dinner: 7:00 – 9:00 PM', 'रात: 7:00 – 9:00 बजे')}
+                    </span>
                   </p>
                 </div>
               </div>

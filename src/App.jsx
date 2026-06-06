@@ -3,7 +3,8 @@ import DeliveryBanner from './components/DeliveryBanner'
 import Navbar        from './components/Navbar'
 import Hero          from './components/Hero'
 import MenuSection   from './components/MenuSection'
-import RotiCallout   from './components/RotiCallout'
+import RotiCallout        from './components/RotiCallout'
+import OfficeTiffinCallout from './components/OfficeTiffinCallout'
 import Gallery       from './components/Gallery'
 import PlansSection  from './components/PlansSection'
 import Testimonials  from './components/Testimonials'
@@ -19,6 +20,7 @@ export default function App() {
       <Navbar />
       <Hero />
       <MenuSection />
+      <OfficeTiffinCallout />
       <RotiCallout />
       <Gallery />
       <PlansSection />

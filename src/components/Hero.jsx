@@ -3,9 +3,9 @@ import { useLang } from '../context/LanguageContext'
 import { waLink } from '../data/content'
 
 const stats = [
-  { n: '5+', en: 'Years serving',    hi: 'वर्षों से सेवा' },
-  { n: '2',  en: 'Meals daily',      hi: 'रोज़ दो बार' },
-  { n: '₹80',en: 'Starting price',   hi: 'शुरुआती कीमत' },
+  { n: '5+', en: 'Years serving',      hi: 'वर्षों से सेवा' },
+  { n: '3',  en: 'Deliveries daily',   hi: 'रोज़ तीन बार' },
+  { n: '₹80',en: 'Starting price',     hi: 'शुरुआती कीमत' },
 ]
 
 export default function Hero() {
@@ -20,7 +20,7 @@ export default function Hero() {
         <h1 className="text-3xl sm:text-5xl font-extrabold text-gray-900 leading-tight mb-4">
           {t('Homemade Tiffin,', 'घर जैसा टिफिन,')}
           <br />
-          <span className="text-saffron">{t('Delivered Fresh Daily', 'रोज़ ताज़ा डिलीवरी')}</span>
+          <span className="text-saffron">{t('Delivered Fresh Daily', 'ताज़ा खाना, घर तक')}</span>
         </h1>
 
         <p className="text-gray-500 text-base sm:text-lg mb-8 max-w-lg mx-auto leading-relaxed">
