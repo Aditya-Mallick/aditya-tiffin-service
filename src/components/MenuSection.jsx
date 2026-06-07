@@ -11,7 +11,7 @@ const TABS = [
 
 export default function MenuSection() {
   const { t } = useLang()
-  const [tab, setTab] = useState(0)
+  const [tab, setTab] = useState(1)
 
   return (
     <section id="menu" className="py-12 px-4 bg-white">
