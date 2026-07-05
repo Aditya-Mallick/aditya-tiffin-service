@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import { useLang } from '../context/LanguageContext'
 
 export default function Footer() {
@@ -10,6 +11,9 @@ export default function Footer() {
         {t('Owner: Satendra Mallick · Supaul, Bihar, India', 'मालिक: सतेन्द्र मल्लिक · सुपौल, बिहार, भारत')}
       </p>
       <p>{t('Serving home-cooked meals since 2020', '2020 से घर का पका खाना परोस रहे हैं')}</p>
+      <Link to="/manage" className="inline-block mt-4 text-gray-600 hover:text-gray-400 underline">
+        {t('Staff / Family login', 'स्टाफ / परिवार लॉगिन')}
+      </Link>
     </footer>
   )
 }
