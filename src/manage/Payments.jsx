@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
+import { Trash2 } from 'lucide-react'
 import { useLang } from '../context/LanguageContext'
 import { useAuth } from './AuthContext'
 import { Modal, Spinner, EmptyState, UndoToast } from './ui'
@@ -119,10 +120,11 @@ export default function Payments() {
                   {p.paid_on}{p.method ? ` · ${p.method}` : ''}{p.note ? ` · ${p.note}` : ''}
                 </p>
               </div>
-              <div className="flex items-center gap-3 shrink-0">
+              <div className="flex items-center gap-2 shrink-0">
                 <span className="font-bold text-tgreen-dark">{formatINR(p.amount)}</span>
-                <button onClick={() => handleRemove(p)} className="text-red-500 text-sm">
-                  {t('Remove', 'हटाएं')}
+                <button onClick={() => handleRemove(p)} aria-label={t('Remove', 'हटाएं')}
+                        className="text-red-400 hover:text-red-600 p-1">
+                  <Trash2 size={16} />
                 </button>
               </div>
             </div>

@@ -278,25 +278,32 @@ function CustomerForm({ customer, tiffinTypes, canSeeMoney, isAdmin, onSaved, on
 function OpeningBalanceField({ value, onChange }) {
   const { t } = useLang()
   const num = Number(value || 0)
-  const dir = num < 0 ? 'advance' : 'due'
   const amt = Math.abs(num)
-  const push = (d, a) => onChange(d === 'advance' ? -Math.abs(Number(a || 0)) : Math.abs(Number(a || 0)))
+  // Direction is its own state so the toggle works even when the amount is 0.
+  const [dir, setDir] = useState(num < 0 ? 'advance' : 'due')
+  // Keep the toggle in sync when an existing customer's value loads in.
+  useEffect(() => {
+    if (num < 0) setDir('advance')
+    else if (num > 0) setDir('due')
+  }, [num])
+  const setDirection = (d) => { setDir(d); onChange(d === 'advance' ? -amt : amt) }
+  const setAmount = (v) => { const a = Math.abs(Number(v || 0)); onChange(dir === 'advance' ? -a : a) }
   return (
     <div>
       <label className="block text-sm font-medium text-gray-700 mb-1">{t('Opening balance', 'शुरुआती बकाया')}</label>
       <div className="flex gap-2">
         <div className="flex rounded-lg overflow-hidden border border-gray-300 shrink-0">
-          <button type="button" onClick={() => push('due', amt)}
+          <button type="button" onClick={() => setDirection('due')}
                   className={`px-3 py-2.5 text-sm ${dir === 'due' ? 'bg-red-600 text-white' : 'bg-white text-gray-600'}`}>
             {t('Owes', 'बकाया')}
           </button>
-          <button type="button" onClick={() => push('advance', amt)}
+          <button type="button" onClick={() => setDirection('advance')}
                   className={`px-3 py-2.5 text-sm ${dir === 'advance' ? 'bg-tgreen text-white' : 'bg-white text-gray-600'}`}>
             {t('Advance', 'अग्रिम')}
           </button>
         </div>
         <input type="number" inputMode="numeric" value={amt === 0 ? '' : amt} placeholder="0"
-               onChange={(e) => push(dir, e.target.value)}
+               onChange={(e) => setAmount(e.target.value)}
                className="flex-1 min-w-0 rounded-lg border border-gray-300 px-3 py-2.5 text-right" />
       </div>
       <p className="text-xs text-gray-400 mt-1">
