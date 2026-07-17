@@ -6,7 +6,7 @@ import { CustomerStatement } from './Statement'
 import {
   listCustomers, getTiffinTypes, getCustomerBilling, getCustomerRates,
   upsertCustomer, upsertCustomerBilling, saveCustomerRates,
-  archiveCustomer, restoreCustomer,
+  archiveCustomer, restoreCustomer, canonicalMobile,
 } from './api'
 
 export default function Customers() {
@@ -107,9 +107,9 @@ export default function Customers() {
                 <button
                   key={c.id}
                   onClick={() => (canSeeMoney ? setViewing(c) : setEditing(c))}
-                  className="w-full text-left bg-white rounded-xl shadow-card p-4 flex items-start gap-3"
+                  className="w-full text-left bg-white rounded-xl shadow-card p-4 flex items-center gap-3"
                 >
-                  <span className="text-xs font-medium text-gray-400 w-6 shrink-0 text-right pt-0.5">{i + 1}</span>
+                  <span className="text-base font-semibold text-gray-400 w-7 shrink-0 text-center">{i + 1}</span>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-gray-800">
                       {c.name}
@@ -121,7 +121,7 @@ export default function Customers() {
                     </p>
                     <p className="text-xs text-gray-500">{c.mobile}{c.address ? ` · ${c.address}` : ''}</p>
                   </div>
-                  <span className="text-gray-300 shrink-0 self-center">›</span>
+                  <span className="text-gray-300 shrink-0">›</span>
                 </button>
               ))}
             </div>
@@ -137,7 +137,14 @@ export default function Customers() {
           isAdmin={isAdmin}
           onArchive={(c) => { setEditing(null); setConfirmArchive(c) }}
           onClose={() => setEditing(null)}
-          onSaved={() => { setEditing(null); load(); setStmtKey(k => k + 1) }}
+          onSaved={(saved) => {
+            setEditing(null)
+            load()
+            // If we're viewing this customer's statement, update its header
+            // and reload its figures immediately (no manual refresh needed).
+            if (saved && viewing && viewing.id === saved.id) setViewing(v => ({ ...v, ...saved }))
+            setStmtKey(k => k + 1)
+          }}
         />
       )}
 
@@ -211,7 +218,7 @@ function CustomerForm({ customer, tiffinTypes, canSeeMoney, isAdmin, onSaved, on
       await saveCustomerRates(customerId, rates)
     }
     setBusy(false)
-    onSaved()
+    onSaved({ id: customerId, name: name.trim(), mobile: canonicalMobile(mobile), address: address.trim() })
   }
 
   return (

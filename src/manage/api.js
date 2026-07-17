@@ -78,12 +78,24 @@ export async function getCustomerRates(customerId) {
     .eq('customer_id', customerId)
 }
 
+// Clean any pasted Indian mobile format down to a bare 10-digit number.
+// Handles: "98184 87872", "+91 98184 87872", "+91-98184-87872",
+// "0919818487872", "09818487872", "00919818487872", etc.
+export function canonicalMobile(mobile) {
+  let d = String(mobile || '').replace(/\D/g, '')        // digits only
+  if (d.startsWith('00')) d = d.slice(2)                  // 00 intl prefix
+  if (d.length === 12 && d.startsWith('91')) d = d.slice(2) // country code
+  if (d.length === 11 && d.startsWith('0')) d = d.slice(1)  // domestic 0 prefix
+  return d
+}
+
 // Create or update a customer's contact row; returns the customer id.
 export async function upsertCustomer(customer) {
+  const mobile = canonicalMobile(customer.mobile)
   if (customer.id) {
     const { data, error } = await supabase
       .from('customers')
-      .update({ name: customer.name, mobile: customer.mobile, address: customer.address })
+      .update({ name: customer.name, mobile, address: customer.address })
       .eq('id', customer.id)
       .select('id')
       .single()
@@ -91,7 +103,7 @@ export async function upsertCustomer(customer) {
   }
   const { data, error } = await supabase
     .from('customers')
-    .insert({ name: customer.name, mobile: customer.mobile, address: customer.address })
+    .insert({ name: customer.name, mobile, address: customer.address })
     .select('id')
     .single()
   return { data, error }

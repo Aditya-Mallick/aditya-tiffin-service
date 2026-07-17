@@ -16,8 +16,11 @@ const STATUS = {
 }
 
 function waNumber(mobile) {
-  const d = String(mobile || '').replace(/\D/g, '')
-  return d.length === 10 ? '91' + d : d
+  let d = String(mobile || '').replace(/\D/g, '')
+  if (d.startsWith('00')) d = d.slice(2)                 // 00 intl prefix
+  if (d.length === 11 && d.startsWith('0')) d = d.slice(1) // domestic 0 prefix
+  if (d.length === 10) d = '91' + d                      // bare 10-digit → add 91
+  return d
 }
 
 // ---- The bill editor (create / edit / finalize / send) ---------------------
@@ -130,8 +133,7 @@ export function BillEditor({ customer, ym, onClose, onSaved }) {
     const ok = await persist(status)
     if (ok && status !== 'sent') onSaved()
   }
-  async function handleWhatsApp() {
-    if (!(await persist('sent'))) return
+  function buildBillMessage() {
     const L = [t('Aditya Tiffin Service', 'आदित्य टिफिन सेवा'),
                t('Bill', 'बिल') + ' — ' + monthLabel(ym, lang), customer.name, '']
     const op = balanceParts(openingSigned)
@@ -146,8 +148,15 @@ export function BillEditor({ customer, ym, onClose, onSaved }) {
     else if (closingParts.kind === 'advance') L.push(t('Advance balance', 'अग्रिम शेष') + ': ' + formatINR(closingParts.amount))
     else L.push(t('Fully settled', 'पूरा भुगतान'))
     L.push('', t('Thank you!', 'धन्यवाद!'))
-    window.open(`https://wa.me/${waNumber(customer.mobile)}?text=${encodeURIComponent(L.join('\n'))}`, '_blank')
-    onSaved()
+    return L.join('\n')
+  }
+
+  function handleWhatsApp() {
+    // Open the customer's WhatsApp chat immediately on tap (a pop-up opened
+    // after an await gets blocked by the browser), then save in the background.
+    const url = `https://wa.me/${waNumber(customer.mobile)}?text=${encodeURIComponent(buildBillMessage())}`
+    window.open(url, '_blank')
+    persist('sent').then((ok) => { if (ok) onSaved() })
   }
 
   if (loading) return <Modal open onClose={onClose} title={customer.name}><Spinner /></Modal>
