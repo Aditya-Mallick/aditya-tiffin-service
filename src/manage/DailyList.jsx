@@ -159,8 +159,8 @@ export default function DailyList() {
             {entries.map((e, i) => (
               <div key={e.id} className="bg-white rounded-xl shadow-card p-3">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <span className="text-xs font-medium text-gray-400 w-5 shrink-0 text-right">{i + 1}</span>
+                  <div className="flex items-start gap-2 min-w-0">
+                    <span className="text-xs font-medium text-gray-400 w-5 shrink-0 text-right pt-0.5">{i + 1}</span>
                     <div className="min-w-0">
                       <p className="text-sm font-semibold text-gray-800 truncate">{e.customers?.name}</p>
                       <p className="text-xs text-gray-400">{e.customers?.mobile}</p>

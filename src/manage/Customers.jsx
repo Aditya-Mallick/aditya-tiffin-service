@@ -17,7 +17,7 @@ export default function Customers() {
   const [tiffinTypes, setTiffinTypes] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
-  const [sort, setSort] = useState('az')          // 'az' | 'latest'
+  const [sort, setSort] = useState('latest')      // 'latest' | 'az'
   const [showArchived, setShowArchived] = useState(false)
   const [editing, setEditing] = useState(null)     // customer obj, {} for new, or null
   const [confirmArchive, setConfirmArchive] = useState(null)
@@ -107,9 +107,9 @@ export default function Customers() {
                 <button
                   key={c.id}
                   onClick={() => (canSeeMoney ? setViewing(c) : setEditing(c))}
-                  className="w-full text-left bg-white rounded-xl shadow-card p-4 flex items-center gap-3"
+                  className="w-full text-left bg-white rounded-xl shadow-card p-4 flex items-start gap-3"
                 >
-                  <span className="text-xs font-medium text-gray-400 w-6 shrink-0 text-right">{i + 1}</span>
+                  <span className="text-xs font-medium text-gray-400 w-6 shrink-0 text-right pt-0.5">{i + 1}</span>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-gray-800">
                       {c.name}
@@ -121,7 +121,7 @@ export default function Customers() {
                     </p>
                     <p className="text-xs text-gray-500">{c.mobile}{c.address ? ` · ${c.address}` : ''}</p>
                   </div>
-                  <span className="text-gray-300 shrink-0">›</span>
+                  <span className="text-gray-300 shrink-0 self-center">›</span>
                 </button>
               ))}
             </div>
