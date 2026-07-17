@@ -56,7 +56,7 @@ export async function deactivateTiffinType(id) {
 export async function listCustomers({ includeArchived = false } = {}) {
   let q = supabase
     .from('customers')
-    .select('id, name, mobile, address, active, deleted_at')
+    .select('id, name, mobile, address, active, deleted_at, created_at')
     .order('name', { ascending: true })
   if (!includeArchived) q = q.is('deleted_at', null)
   return q

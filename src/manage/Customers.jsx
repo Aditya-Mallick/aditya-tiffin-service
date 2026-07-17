@@ -17,6 +17,7 @@ export default function Customers() {
   const [tiffinTypes, setTiffinTypes] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
+  const [sort, setSort] = useState('az')          // 'az' | 'latest'
   const [showArchived, setShowArchived] = useState(false)
   const [editing, setEditing] = useState(null)     // customer obj, {} for new, or null
   const [confirmArchive, setConfirmArchive] = useState(null)
@@ -39,6 +40,10 @@ export default function Customers() {
   const q = search.trim().toLowerCase()
   const filtered = customers.filter(c =>
     !q || c.name.toLowerCase().includes(q) || (c.mobile || '').includes(q))
+  const sorted = [...filtered].sort((a, b) =>
+    sort === 'latest'
+      ? (b.created_at || '').localeCompare(a.created_at || '')   // newest first
+      : a.name.localeCompare(b.name))                            // A–Z
 
   return (
     <div className="space-y-4">
@@ -53,7 +58,10 @@ export default function Customers() {
       ) : (
         <>
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-bold text-gray-800">{t('Customers', 'ग्राहक')}</h2>
+            <h2 className="text-lg font-bold text-gray-800">
+              {t('Customers', 'ग्राहक')}
+              <span className="ml-2 text-sm font-normal text-gray-400">({customers.length})</span>
+            </h2>
             <button
               onClick={() => setEditing({})}
               className="bg-saffron hover:bg-saffron-dark text-white text-sm font-semibold rounded-full px-4 py-2"
@@ -69,6 +77,20 @@ export default function Customers() {
             className="w-full rounded-lg border border-gray-300 px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-saffron"
           />
 
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-gray-400">{t('Sort', 'क्रम')}:</span>
+            <div className="flex rounded-lg overflow-hidden border border-gray-300">
+              <button onClick={() => setSort('az')}
+                      className={`px-3 py-1.5 text-xs font-medium ${sort === 'az' ? 'bg-saffron text-white' : 'bg-white text-gray-600'}`}>
+                {t('A–Z', 'नाम')}
+              </button>
+              <button onClick={() => setSort('latest')}
+                      className={`px-3 py-1.5 text-xs font-medium ${sort === 'latest' ? 'bg-saffron text-white' : 'bg-white text-gray-600'}`}>
+                {t('Latest', 'नए')}
+              </button>
+            </div>
+          </div>
+
           {isAdmin && (
             <label className="flex items-center gap-2 text-sm text-gray-500">
               <input type="checkbox" checked={showArchived}
@@ -81,13 +103,14 @@ export default function Customers() {
             <EmptyState text={t('No customers yet.', 'अभी कोई ग्राहक नहीं।')} />
           ) : (
             <div className="space-y-2">
-              {filtered.map(c => (
+              {sorted.map((c, i) => (
                 <button
                   key={c.id}
                   onClick={() => (canSeeMoney ? setViewing(c) : setEditing(c))}
-                  className="w-full text-left bg-white rounded-xl shadow-card p-4 flex items-center justify-between"
+                  className="w-full text-left bg-white rounded-xl shadow-card p-4 flex items-center gap-3"
                 >
-                  <div>
+                  <span className="text-xs font-medium text-gray-400 w-6 shrink-0 text-right">{i + 1}</span>
+                  <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-gray-800">
                       {c.name}
                       {c.deleted_at && (
@@ -98,7 +121,7 @@ export default function Customers() {
                     </p>
                     <p className="text-xs text-gray-500">{c.mobile}{c.address ? ` · ${c.address}` : ''}</p>
                   </div>
-                  <span className="text-gray-300">›</span>
+                  <span className="text-gray-300 shrink-0">›</span>
                 </button>
               ))}
             </div>
