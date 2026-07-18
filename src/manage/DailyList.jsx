@@ -41,6 +41,7 @@ export default function DailyList() {
   const [note, setNote] = useState('')       // transient status line
   const [entrySearch, setEntrySearch] = useState('')
   const [guestLabels, setGuestLabels] = useState([])
+  const [walkinFilter, setWalkinFilter] = useState('all')   // 'all' | 'walkin'
 
   const canEdit = isAdmin || date === today
 
@@ -68,13 +69,26 @@ export default function DailyList() {
 
   // Display name = real customer name, or the walk-in label.
   const nameOf = (e) => e.customers?.name || e.guest_label || ''
-  // Show the list sorted A–Z by name, filtered by the in-list search.
+  // Sort A–Z, then apply the walk-in filter and the in-list search.
   const sortedEntries = [...entries].sort((a, b) => nameOf(a).localeCompare(nameOf(b)))
   const eq = entrySearch.trim().toLowerCase()
-  const shownEntries = eq
-    ? sortedEntries.filter(e =>
-        nameOf(e).toLowerCase().includes(eq) || (e.customers?.mobile || '').includes(eq))
-    : sortedEntries
+  const shownEntries = sortedEntries.filter(e => {
+    if (walkinFilter === 'walkin' && e.customer_id) return false
+    if (eq && !(nameOf(e).toLowerCase().includes(eq) || (e.customers?.mobile || '').includes(eq))) return false
+    return true
+  })
+
+  // Kitchen summary for the whole slot (independent of search / filter).
+  const totalTiffins = entries.reduce((s, e) => s + (e.quantity || 1), 0)
+  const walkinCount = entries.filter(e => !e.customer_id).length
+  const typeCountMap = {}
+  for (const e of entries) {
+    const name = e.tiffin_types
+      ? (lang === 'hi' && e.tiffin_types.name_hi ? e.tiffin_types.name_hi : e.tiffin_types.name_en)
+      : t('Not set', 'नहीं चुना')
+    typeCountMap[name] = (typeCountMap[name] || 0) + (e.quantity || 1)
+  }
+  const typeCounts = Object.entries(typeCountMap).sort((a, b) => b[1] - a[1])
 
   async function handleAdd(customerId) {
     await addEntry(date, slot, customerId, defaultTiffinId, 1)
@@ -154,26 +168,51 @@ export default function DailyList() {
 
       {note && <div className="text-sm text-tgreen-dark bg-tgreen/10 rounded-lg p-2 text-center">{note}</div>}
 
-      {/* Count + Add (Add sits top-right, same as the Customers page) */}
-      <div className="flex items-center justify-between">
-        <span className="text-sm text-gray-500">
-          {t(`${entries.length} in list`, `सूची में ${entries.length}`)}
-        </span>
-        {canEdit && (
-          <button onClick={() => setAdding(true)}
-                  className="bg-saffron hover:bg-saffron-dark text-white text-sm font-semibold rounded-full px-4 py-2">
-            + {t('Add', 'जोड़ें')}
-          </button>
-        )}
+      {/* Sticky summary + Add — stays visible while scrolling the list */}
+      <div className="sticky top-0 z-20 bg-cream -mx-4 px-4 py-2 border-b border-black/5">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-gray-800">
+              {entries.length} {t('customers', 'ग्राहक')} · {totalTiffins} {t('tiffins', 'टिफिन')}
+            </p>
+            {typeCounts.length > 0 && (
+              <div className="flex flex-wrap gap-1 mt-1">
+                {typeCounts.map(([name, qty]) => (
+                  <span key={name} className="text-[11px] bg-white rounded-full px-2 py-0.5 text-gray-600 shadow-card">
+                    {name} ×{qty}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+          {canEdit && (
+            <button onClick={() => setAdding(true)}
+                    className="shrink-0 bg-saffron hover:bg-saffron-dark text-white text-sm font-semibold rounded-full px-4 py-2">
+              + {t('Add', 'जोड़ें')}
+            </button>
+          )}
+        </div>
       </div>
 
-      {/* Search within the added customers */}
-      <input
-        value={entrySearch}
-        onChange={(e) => setEntrySearch(e.target.value)}
-        placeholder={t('Search this list…', 'इस सूची में खोजें…')}
-        className="w-full rounded-lg border border-gray-300 px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-saffron"
-      />
+      {/* Search + walk-in filter */}
+      <div className="flex gap-2">
+        <input
+          value={entrySearch}
+          onChange={(e) => setEntrySearch(e.target.value)}
+          placeholder={t('Search this list…', 'इस सूची में खोजें…')}
+          className="flex-1 min-w-0 rounded-lg border border-gray-300 px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-saffron"
+        />
+        <div className="flex rounded-lg overflow-hidden border border-gray-300 shrink-0">
+          <button onClick={() => setWalkinFilter('all')}
+                  className={`px-3 text-sm font-medium ${walkinFilter === 'all' ? 'bg-saffron text-white' : 'bg-white text-gray-600'}`}>
+            {t('All', 'सभी')}
+          </button>
+          <button onClick={() => setWalkinFilter('walkin')}
+                  className={`px-3 text-sm font-medium ${walkinFilter === 'walkin' ? 'bg-gold text-white' : 'bg-white text-gray-600'}`}>
+            {t('Walk-ins', 'वॉक-इन')}{walkinCount > 0 ? ` (${walkinCount})` : ''}
+          </button>
+        </div>
+      </div>
 
       {/* Copy from another day (own row so it never overflows) */}
       {canEdit && (

@@ -284,6 +284,7 @@ export default function Bills() {
 
   return (
     <div className="space-y-4 pb-4">
+      <div className="sticky top-0 z-20 bg-cream -mx-4 px-4 py-2 border-b border-black/5 space-y-2">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-bold text-gray-800">{t('Bills', 'बिल')}</h2>
         <button onClick={() => setPicking(true)}
@@ -303,6 +304,7 @@ export default function Bills() {
       <div className="bg-white rounded-xl shadow-card p-3 text-center">
         <p className="text-xs text-gray-500">{t('Total outstanding this month', 'इस महीने कुल बकाया')}</p>
         <p className="text-lg font-bold text-red-600">{formatINR(outstanding)}</p>
+      </div>
       </div>
 
       {loading ? <Spinner /> : bills.length === 0 ? (

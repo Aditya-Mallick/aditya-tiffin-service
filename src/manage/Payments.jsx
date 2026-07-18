@@ -74,6 +74,7 @@ export default function Payments() {
 
   return (
     <div className="space-y-4 pb-4">
+      <div className="sticky top-0 z-20 bg-cream -mx-4 px-4 py-2 border-b border-black/5 space-y-2">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-bold text-gray-800">{t('Payments', 'भुगतान')}</h2>
         <button onClick={() => setRecording(true)}
@@ -106,6 +107,7 @@ export default function Payments() {
             </div>
           )
         })()}
+      </div>
       </div>
 
       {loading ? <Spinner /> : payments.length === 0 ? (

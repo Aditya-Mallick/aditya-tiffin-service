@@ -57,7 +57,7 @@ export default function Customers() {
         />
       ) : (
         <>
-          <div className="flex items-center justify-between">
+          <div className="sticky top-0 z-20 bg-cream -mx-4 px-4 py-2 border-b border-black/5 flex items-center justify-between">
             <h2 className="text-lg font-bold text-gray-800">
               {t('Customers', 'ग्राहक')}
               <span className="ml-2 text-sm font-normal text-gray-400">({customers.length})</span>
