@@ -42,6 +42,7 @@ export default function DailyList() {
   const [entrySearch, setEntrySearch] = useState('')
   const [guestLabels, setGuestLabels] = useState([])
   const [walkinFilter, setWalkinFilter] = useState('all')   // 'all' | 'walkin'
+  const [typeFilter, setTypeFilter] = useState(null)        // tiffin_type_id / 'none' / null
 
   const canEdit = isAdmin || date === today
 
@@ -69,26 +70,32 @@ export default function DailyList() {
 
   // Display name = real customer name, or the walk-in label.
   const nameOf = (e) => e.customers?.name || e.guest_label || ''
-  // Sort A–Z, then apply the walk-in filter and the in-list search.
-  const sortedEntries = [...entries].sort((a, b) => nameOf(a).localeCompare(nameOf(b)))
-  const eq = entrySearch.trim().toLowerCase()
-  const shownEntries = sortedEntries.filter(e => {
-    if (walkinFilter === 'walkin' && e.customer_id) return false
-    if (eq && !(nameOf(e).toLowerCase().includes(eq) || (e.customers?.mobile || '').includes(eq))) return false
-    return true
-  })
 
   // Kitchen summary for the whole slot (independent of search / filter).
   const totalTiffins = entries.reduce((s, e) => s + (e.quantity || 1), 0)
   const walkinCount = entries.filter(e => !e.customer_id).length
   const typeCountMap = {}
   for (const e of entries) {
+    const key = e.tiffin_type_id || 'none'
     const name = e.tiffin_types
       ? (lang === 'hi' && e.tiffin_types.name_hi ? e.tiffin_types.name_hi : e.tiffin_types.name_en)
       : t('Not set', 'नहीं चुना')
-    typeCountMap[name] = (typeCountMap[name] || 0) + (e.quantity || 1)
+    if (!typeCountMap[key]) typeCountMap[key] = { key, name, qty: 0 }
+    typeCountMap[key].qty += (e.quantity || 1)
   }
-  const typeCounts = Object.entries(typeCountMap).sort((a, b) => b[1] - a[1])
+  const typeCounts = Object.values(typeCountMap).sort((a, b) => b.qty - a.qty)
+  // Tapping a type chip filters the list; auto-clears if that type isn't present.
+  const activeType = typeCounts.some(tc => tc.key === typeFilter) ? typeFilter : null
+
+  // Sort A–Z, then apply the type + walk-in filters and the in-list search.
+  const sortedEntries = [...entries].sort((a, b) => nameOf(a).localeCompare(nameOf(b)))
+  const eq = entrySearch.trim().toLowerCase()
+  const shownEntries = sortedEntries.filter(e => {
+    if (walkinFilter === 'walkin' && e.customer_id) return false
+    if (activeType && (e.tiffin_type_id || 'none') !== activeType) return false
+    if (eq && !(nameOf(e).toLowerCase().includes(eq) || (e.customers?.mobile || '').includes(eq))) return false
+    return true
+  })
 
   async function handleAdd(customerId) {
     await addEntry(date, slot, customerId, defaultTiffinId, 1)
@@ -177,10 +184,12 @@ export default function DailyList() {
             </p>
             {typeCounts.length > 0 && (
               <div className="flex flex-wrap gap-1 mt-1">
-                {typeCounts.map(([name, qty]) => (
-                  <span key={name} className="text-[11px] bg-white rounded-full px-2 py-0.5 text-gray-600 shadow-card">
-                    {name} ×{qty}
-                  </span>
+                {typeCounts.map(tc => (
+                  <button key={tc.key}
+                    onClick={() => setTypeFilter(f => (f === tc.key ? null : tc.key))}
+                    className={`text-[11px] rounded-full px-2 py-0.5 shadow-card ${activeType === tc.key ? 'bg-saffron text-white' : 'bg-white text-gray-600'}`}>
+                    {tc.name} ×{tc.qty}
+                  </button>
                 ))}
               </div>
             )}
