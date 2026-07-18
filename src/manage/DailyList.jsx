@@ -38,6 +38,7 @@ export default function DailyList() {
   const [copyOpen, setCopyOpen] = useState(false)
   const [undo, setUndo] = useState(null)     // { message, entryId }
   const [note, setNote] = useState('')       // transient status line
+  const [entrySearch, setEntrySearch] = useState('')
 
   const canEdit = isAdmin || date === today
 
@@ -59,6 +60,16 @@ export default function DailyList() {
 
   const defaultTiffinId = tiffinTypes[0]?.id
   const presentIds = new Set(entries.map(e => e.customer_id))
+
+  // Show the list sorted A–Z by name, filtered by the in-list search.
+  const sortedEntries = [...entries].sort((a, b) =>
+    (a.customers?.name || '').localeCompare(b.customers?.name || ''))
+  const eq = entrySearch.trim().toLowerCase()
+  const shownEntries = eq
+    ? sortedEntries.filter(e =>
+        (e.customers?.name || '').toLowerCase().includes(eq) ||
+        (e.customers?.mobile || '').includes(eq))
+    : sortedEntries
 
   async function handleAdd(customerId) {
     await addEntry(date, slot, customerId, defaultTiffinId, 1)
@@ -131,32 +142,50 @@ export default function DailyList() {
 
       {note && <div className="text-sm text-tgreen-dark bg-tgreen/10 rounded-lg p-2 text-center">{note}</div>}
 
-      {/* Actions */}
-      {canEdit && (
-        <div className="flex gap-2">
+      {/* Count + Add (Add sits top-right, same as the Customers page) */}
+      <div className="flex items-center justify-between">
+        <span className="text-sm text-gray-500">
+          {t(`${entries.length} in list`, `सूची में ${entries.length}`)}
+        </span>
+        {canEdit && (
           <button onClick={() => setAdding(true)}
-                  className="flex-1 bg-saffron hover:bg-saffron-dark text-white font-semibold rounded-lg py-2.5">
-            + {t('Add customer', 'ग्राहक जोड़ें')}
+                  className="bg-saffron hover:bg-saffron-dark text-white text-sm font-semibold rounded-full px-4 py-2">
+            + {t('Add', 'जोड़ें')}
           </button>
+        )}
+      </div>
+
+      {/* Search within the added customers */}
+      <input
+        value={entrySearch}
+        onChange={(e) => setEntrySearch(e.target.value)}
+        placeholder={t('Search this list…', 'इस सूची में खोजें…')}
+        className="w-full rounded-lg border border-gray-300 px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-saffron"
+      />
+
+      {/* Copy from another day (own row so it never overflows) */}
+      {canEdit && (
+        <div className="grid grid-cols-2 gap-2">
           <button onClick={() => doCopy(addDays(date, -1), slot)}
-                  className="px-3 rounded-lg bg-white shadow-card text-sm text-gray-700">
+                  className="rounded-lg bg-white shadow-card text-sm text-gray-700 py-2">
             {t('Copy yesterday', 'कल की कॉपी')}
           </button>
           <button onClick={() => setCopyOpen(true)}
-                  className="px-3 rounded-lg bg-white shadow-card text-sm text-gray-700">
+                  className="rounded-lg bg-white shadow-card text-sm text-gray-700 py-2">
             {t('Copy from…', 'तारीख से…')}
           </button>
         </div>
       )}
 
-      {/* Entries */}
+      {/* Entries (sorted A–Z, filtered by search) */}
       {loading ? <Spinner /> : entries.length === 0 ? (
         <EmptyState text={t('No customers in this list yet.', 'इस सूची में अभी कोई ग्राहक नहीं।')} />
+      ) : shownEntries.length === 0 ? (
+        <EmptyState text={t('No match in this list.', 'इस सूची में कोई मेल नहीं।')} />
       ) : (
         <>
-          <p className="text-xs text-gray-400">{t(`${entries.length} customer(s)`, `${entries.length} ग्राहक`)}</p>
           <div className="space-y-2">
-            {entries.map((e, i) => (
+            {shownEntries.map((e, i) => (
               <div key={e.id} className="bg-white rounded-xl shadow-card p-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 min-w-0">
