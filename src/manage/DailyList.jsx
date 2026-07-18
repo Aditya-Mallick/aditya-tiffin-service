@@ -3,8 +3,9 @@ import { useLang } from '../context/LanguageContext'
 import { useAuth } from './AuthContext'
 import { Modal, Spinner, EmptyState, UndoToast } from './ui'
 import {
-  getDailyEntries, getTiffinTypes, listCustomers, addEntry, updateEntry,
-  softRemoveEntry, restoreEntry, copyDailyList, todayIST, addDays,
+  getDailyEntries, getTiffinTypes, listCustomers, addEntry, addGuestEntry,
+  getRecentGuestLabels, updateEntry, softRemoveEntry, restoreEntry, copyDailyList,
+  todayIST, addDays,
 } from './api'
 
 const SLOTS = [
@@ -39,13 +40,17 @@ export default function DailyList() {
   const [undo, setUndo] = useState(null)     // { message, entryId }
   const [note, setNote] = useState('')       // transient status line
   const [entrySearch, setEntrySearch] = useState('')
+  const [guestLabels, setGuestLabels] = useState([])
 
   const canEdit = isAdmin || date === today
 
   const loadRefs = useCallback(async () => {
-    const [{ data: cs }, { data: tt }] = await Promise.all([listCustomers(), getTiffinTypes()])
+    const [{ data: cs }, { data: tt }, labels] = await Promise.all([
+      listCustomers(), getTiffinTypes(), getRecentGuestLabels(),
+    ])
     setCustomers(cs || [])
     setTiffinTypes(tt || [])
+    setGuestLabels(labels || [])
   }, [])
 
   const loadEntries = useCallback(async () => {
@@ -61,19 +66,26 @@ export default function DailyList() {
   const defaultTiffinId = tiffinTypes[0]?.id
   const presentIds = new Set(entries.map(e => e.customer_id))
 
+  // Display name = real customer name, or the walk-in label.
+  const nameOf = (e) => e.customers?.name || e.guest_label || ''
   // Show the list sorted A–Z by name, filtered by the in-list search.
-  const sortedEntries = [...entries].sort((a, b) =>
-    (a.customers?.name || '').localeCompare(b.customers?.name || ''))
+  const sortedEntries = [...entries].sort((a, b) => nameOf(a).localeCompare(nameOf(b)))
   const eq = entrySearch.trim().toLowerCase()
   const shownEntries = eq
     ? sortedEntries.filter(e =>
-        (e.customers?.name || '').toLowerCase().includes(eq) ||
-        (e.customers?.mobile || '').includes(eq))
+        nameOf(e).toLowerCase().includes(eq) || (e.customers?.mobile || '').includes(eq))
     : sortedEntries
 
   async function handleAdd(customerId) {
     await addEntry(date, slot, customerId, defaultTiffinId, 1)
     await loadEntries()
+  }
+  async function handleAddGuest(label) {
+    const l = (label || '').trim()
+    if (!l) return
+    await addGuestEntry(date, slot, l, defaultTiffinId, 1)
+    await loadEntries()
+    getRecentGuestLabels().then(setGuestLabels)   // refresh suggestions
   }
   async function handleChangeType(entryId, tiffinTypeId) {
     setEntries(es => es.map(e => e.id === entryId
@@ -191,8 +203,16 @@ export default function DailyList() {
                   <div className="flex items-center gap-2 min-w-0">
                     <span className="text-base font-semibold text-gray-400 w-7 shrink-0 text-center">{i + 1}</span>
                     <div className="min-w-0">
-                      <p className="text-sm font-semibold text-gray-800 truncate">{e.customers?.name}</p>
-                      <p className="text-xs text-gray-400">{e.customers?.mobile}</p>
+                      <p className="text-sm font-semibold text-gray-800 truncate">
+                        {e.customers?.name || e.guest_label}
+                      </p>
+                      {e.customers ? (
+                        <p className="text-xs text-gray-400">{e.customers.mobile}</p>
+                      ) : (
+                        <span className="inline-block text-[11px] font-medium text-gold bg-gold/10 rounded px-1.5 py-0.5 mt-0.5">
+                          {t('Walk-in', 'वॉक-इन')}
+                        </span>
+                      )}
                     </div>
                   </div>
                   {canEdit && (
@@ -234,8 +254,9 @@ export default function DailyList() {
       {adding && (
         <AddCustomerModal
           customers={customers.filter(c => !presentIds.has(c.id))}
-          lang={lang}
+          guestLabels={guestLabels}
           onAdd={handleAdd}
+          onAddGuest={handleAddGuest}
           onClose={() => setAdding(false)}
         />
       )}
@@ -251,23 +272,24 @@ export default function DailyList() {
   )
 }
 
-function AddCustomerModal({ customers, lang, onAdd, onClose }) {
+function AddCustomerModal({ customers, guestLabels, onAdd, onAddGuest, onClose }) {
   const { t } = useLang()
   const [search, setSearch] = useState('')
-  const q = search.trim().toLowerCase()
+  const typed = search.trim()
+  const q = typed.toLowerCase()
   const list = customers.filter(c => !q || c.name.toLowerCase().includes(q) || (c.mobile || '').includes(q))
+  const labelMatches = (guestLabels || []).filter(l => q && l.toLowerCase().includes(q)).slice(0, 6)
+  const exactLabel = (guestLabels || []).some(l => l.toLowerCase() === q)
+
   return (
-    <Modal open onClose={onClose} title={t('Add customer to list', 'सूची में ग्राहक जोड़ें')}>
+    <Modal open onClose={onClose} title={t('Add to list', 'सूची में जोड़ें')}>
       <input autoFocus value={search} onChange={(e) => setSearch(e.target.value)}
-             placeholder={t('Search name or mobile…', 'नाम या मोबाइल खोजें…')}
+             placeholder={t('Search customer, or type a bed / walk-in…', 'ग्राहक खोजें, या बेड / वॉक-इन लिखें…')}
              className="w-full rounded-lg border border-gray-300 px-4 py-2.5 mb-3 focus:outline-none focus:ring-2 focus:ring-saffron" />
-      <div className="max-h-72 overflow-y-auto space-y-2">
-        {list.length === 0 ? (
-          <p className="text-center text-gray-400 py-6 text-sm">
-            {t('No matching customers. Add them in the Customers tab first.',
-               'कोई ग्राहक नहीं मिला। पहले ग्राहक टैब में जोड़ें।')}
-          </p>
-        ) : list.map(c => (
+
+      <div className="max-h-64 overflow-y-auto space-y-2">
+        {/* Existing customers */}
+        {list.map(c => (
           <button key={c.id} onClick={() => onAdd(c.id)}
                   className="w-full text-left bg-cream rounded-lg p-3 flex items-center justify-between">
             <span><span className="font-medium text-gray-800">{c.name}</span>
@@ -275,7 +297,39 @@ function AddCustomerModal({ customers, lang, onAdd, onClose }) {
             <span className="text-saffron font-bold">+</span>
           </button>
         ))}
+
+        {/* Walk-in / hotel bed */}
+        {(typed || labelMatches.length > 0) && (
+          <div className="pt-1">
+            <p className="text-xs text-gray-400 px-1 mb-1">{t('Walk-in / hotel bed', 'वॉक-इन / होटल बेड')}</p>
+            {typed && !exactLabel && (
+              <button onClick={() => { onAddGuest(typed); setSearch('') }}
+                      className="w-full text-left bg-gold/10 rounded-lg p-3 flex items-center justify-between">
+                <span className="text-gray-800">
+                  {t('Add', 'जोड़ें')} “<span className="font-semibold">{typed}</span>” {t('as walk-in', 'वॉक-इन')}
+                </span>
+                <span className="text-gold font-bold">+</span>
+              </button>
+            )}
+            {labelMatches.map(l => (
+              <button key={l} onClick={() => { onAddGuest(l); setSearch('') }}
+                      className="w-full text-left bg-cream rounded-lg p-3 flex items-center justify-between mt-1">
+                <span className="text-gray-800">{l}
+                  <span className="text-gray-400 text-xs"> · {t('walk-in', 'वॉक-इन')}</span></span>
+                <span className="text-saffron font-bold">+</span>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {list.length === 0 && !typed && (
+          <p className="text-center text-gray-400 py-6 text-sm">
+            {t('Type a name to add a customer, or a bed/walk-in label.',
+               'ग्राहक जोड़ने के लिए नाम, या बेड/वॉक-इन लेबल लिखें।')}
+          </p>
+        )}
       </div>
+
       <button onClick={onClose} className="w-full mt-4 py-3 rounded-lg bg-saffron text-white font-semibold">
         {t('Done', 'हो गया')}
       </button>

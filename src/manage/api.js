@@ -154,7 +154,7 @@ export async function restoreCustomer(id) {
 export async function getDailyEntries(dateStr, slot) {
   return supabase
     .from('delivery_entries')
-    .select('id, quantity, notes, tiffin_type_id, customer_id, ' +
+    .select('id, quantity, notes, tiffin_type_id, customer_id, guest_label, ' +
             'customers ( id, name, mobile ), tiffin_types ( id, name_en, name_hi )')
     .eq('entry_date', dateStr)
     .eq('slot', slot)
@@ -167,6 +167,30 @@ export async function addEntry(dateStr, slot, customerId, tiffinTypeId, quantity
     entry_date: dateStr, slot, customer_id: customerId,
     tiffin_type_id: tiffinTypeId, quantity,
   }).select('id').single()
+}
+
+// A one-time walk-in / hotel-bed entry — a label, no customer record.
+export async function addGuestEntry(dateStr, slot, label, tiffinTypeId, quantity = 1) {
+  return supabase.from('delivery_entries').insert({
+    entry_date: dateStr, slot, customer_id: null, guest_label: label,
+    tiffin_type_id: tiffinTypeId, quantity,
+  }).select('id').single()
+}
+
+// Distinct walk-in labels used before (for type-ahead suggestions).
+export async function getRecentGuestLabels() {
+  const { data } = await supabase
+    .from('delivery_entries')
+    .select('guest_label')
+    .not('guest_label', 'is', null)
+    .order('created_at', { ascending: false })
+    .limit(300)
+  const seen = new Set(); const out = []
+  for (const r of data || []) {
+    const l = (r.guest_label || '').trim()
+    if (l && !seen.has(l.toLowerCase())) { seen.add(l.toLowerCase()); out.push(l) }
+  }
+  return out
 }
 
 export async function updateEntry(id, fields) {
