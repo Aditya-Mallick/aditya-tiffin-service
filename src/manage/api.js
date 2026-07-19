@@ -27,7 +27,7 @@ export async function adminUsers(body) {
 export async function getTiffinTypes({ includeInactive = false } = {}) {
   let q = supabase
     .from('tiffin_types')
-    .select('id, name_en, name_hi, default_price, category, sort_order, active')
+    .select('id, name_en, name_hi, default_price, full_price, has_portions, category, sort_order, active')
     .order('sort_order', { ascending: true })
   if (!includeInactive) q = q.eq('active', true)
   return q
@@ -38,6 +38,8 @@ export async function saveTiffinType(tt) {
     name_en: (tt.name_en || '').trim(),
     name_hi: tt.name_hi?.trim() || null,
     default_price: Number(tt.default_price || 0),
+    has_portions: Boolean(tt.has_portions),
+    full_price: tt.full_price === '' || tt.full_price == null ? null : Number(tt.full_price),
     category: tt.category || 'tiffin',
     sort_order: tt.sort_order ?? 100,
     active: true,
@@ -74,7 +76,7 @@ export async function getCustomerBilling(customerId) {
 export async function getCustomerRates(customerId) {
   return supabase
     .from('customer_rates')
-    .select('id, tiffin_type_id, price')
+    .select('id, tiffin_type_id, price, full_price')
     .eq('customer_id', customerId)
 }
 
@@ -121,14 +123,24 @@ export async function upsertCustomerBilling(customerId, billing) {
     })
 }
 
-// Save per-item rate overrides. `rates` = { [tiffin_type_id]: priceString }.
-// Empty string means "use the default", so we delete any existing override.
+// Save per-item rate overrides.
+// `rates` = { [tiffin_type_id]: { half: string, full: string } }.
+// Blank means "use the default" for that portion; both blank deletes the row.
 export async function saveCustomerRates(customerId, rates) {
   const toUpsert = []
   const toDelete = []
-  for (const [tiffinTypeId, value] of Object.entries(rates)) {
-    if (value === '' || value == null) toDelete.push(tiffinTypeId)
-    else toUpsert.push({ customer_id: customerId, tiffin_type_id: tiffinTypeId, price: Number(value) })
+  for (const [tiffinTypeId, val] of Object.entries(rates)) {
+    const half = val?.half
+    const full = val?.full
+    const hasHalf = !(half === '' || half == null)
+    const hasFull = !(full === '' || full == null)
+    if (!hasHalf && !hasFull) { toDelete.push(tiffinTypeId); continue }
+    toUpsert.push({
+      customer_id: customerId,
+      tiffin_type_id: tiffinTypeId,
+      price: hasHalf ? Number(half) : null,
+      full_price: hasFull ? Number(full) : null,
+    })
   }
   if (toDelete.length) {
     await supabase.from('customer_rates')
@@ -154,7 +166,7 @@ export async function restoreCustomer(id) {
 export async function getDailyEntries(dateStr, slot) {
   return supabase
     .from('delivery_entries')
-    .select('id, quantity, notes, tiffin_type_id, customer_id, guest_label, ' +
+    .select('id, quantity, notes, tiffin_type_id, portion, customer_id, guest_label, ' +
             'customers ( id, name, mobile ), tiffin_types ( id, name_en, name_hi )')
     .eq('entry_date', dateStr)
     .eq('slot', slot)
@@ -162,18 +174,18 @@ export async function getDailyEntries(dateStr, slot) {
     .order('created_at', { ascending: true })
 }
 
-export async function addEntry(dateStr, slot, customerId, tiffinTypeId, quantity = 1) {
+export async function addEntry(dateStr, slot, customerId, tiffinTypeId, quantity = 1, portion = null) {
   return supabase.from('delivery_entries').insert({
     entry_date: dateStr, slot, customer_id: customerId,
-    tiffin_type_id: tiffinTypeId, quantity,
+    tiffin_type_id: tiffinTypeId, quantity, portion,
   }).select('id').single()
 }
 
 // A one-time walk-in / hotel-bed entry — a label, no customer record.
-export async function addGuestEntry(dateStr, slot, label, tiffinTypeId, quantity = 1) {
+export async function addGuestEntry(dateStr, slot, label, tiffinTypeId, quantity = 1, portion = null) {
   return supabase.from('delivery_entries').insert({
     entry_date: dateStr, slot, customer_id: null, guest_label: label,
-    tiffin_type_id: tiffinTypeId, quantity,
+    tiffin_type_id: tiffinTypeId, quantity, portion,
   }).select('id').single()
 }
 
@@ -298,18 +310,22 @@ export function monthLabel(ym, lang = 'en') {
     })
 }
 
-// Resolve the price for a tiffin type for a given customer:
-// customer override if present, otherwise the default price.
-export function rateFor(tiffinType, overridesMap) {
-  const o = overridesMap?.[tiffinType.id]
-  return o != null ? Number(o) : Number(tiffinType.default_price || 0)
+// Resolve the price for a tiffin type + portion for a given customer.
+// `ov` = that customer's override for this type: { half, full } (either may be null).
+export function rateForPortion(tiffinType, ov, portion) {
+  if (!tiffinType) return 0
+  if (portion === 'full') {
+    return Number(ov?.full ?? tiffinType.full_price ?? tiffinType.default_price ?? 0)
+  }
+  return Number(ov?.half ?? tiffinType.default_price ?? 0)   // half or single
 }
 
 // Shared charge computation used by both the statement and billing, so the
-// two can never disagree. `overrides` = { tiffin_type_id: price }.
+// two can never disagree. `overrides` = { tiffin_type_id: { half, full } }.
+// Half and full portions of the same item are grouped (and priced) separately.
 export function computeCharges(entries, overrides, types) {
   const typeById = Object.fromEntries(types.map(tt => [tt.id, tt]))
-  const byType = {}
+  const groups = {}
   const bySlot = { morning: 0, afternoon: 0, evening: 0 }
   let unspecified = 0, tiffins = 0
   const days = new Set()
@@ -319,17 +335,25 @@ export function computeCharges(entries, overrides, types) {
     tiffins += q
     if (e.slot in bySlot) bySlot[e.slot] += q
     if (!e.tiffin_type_id) { unspecified += q; continue }
-    byType[e.tiffin_type_id] = (byType[e.tiffin_type_id] || 0) + q
-  }
-  const lines = Object.entries(byType).map(([typeId, qty]) => {
-    const tt = typeById[typeId]
-    const rate = tt ? rateFor(tt, overrides) : 0
-    return {
-      tiffin_type_id: typeId,
-      name_en: tt?.name_en || '?', name_hi: tt?.name_hi || null,
-      qty, rate, total: qty * rate,
+    const tt = typeById[e.tiffin_type_id]
+    const portion = tt?.has_portions ? (e.portion === 'full' ? 'full' : 'half') : null
+    const key = e.tiffin_type_id + ':' + (portion || '')
+    if (!groups[key]) {
+      const enSuffix = portion === 'full' ? ' (Full)' : portion === 'half' ? ' (Half)' : ''
+      const hiSuffix = portion === 'full' ? ' (फुल)' : portion === 'half' ? ' (हाफ)' : ''
+      groups[key] = {
+        tiffin_type_id: e.tiffin_type_id, portion,
+        name_en: (tt?.name_en || '?') + enSuffix,
+        name_hi: tt?.name_hi ? tt.name_hi + hiSuffix : null,
+        qty: 0,
+        rate: rateForPortion(tt, overrides?.[e.tiffin_type_id], portion),
+      }
     }
-  }).sort((a, b) => b.total - a.total)
+    groups[key].qty += q
+  }
+  const lines = Object.values(groups)
+    .map(g => ({ ...g, total: g.qty * g.rate }))
+    .sort((a, b) => b.total - a.total)
   const charges = lines.reduce((s, l) => s + l.total, 0)
   return { lines, charges, bySlot, days: days.size, tiffins, unspecified }
 }

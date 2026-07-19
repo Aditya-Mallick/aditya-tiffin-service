@@ -193,7 +193,12 @@ function CustomerForm({ customer, tiffinTypes, canSeeMoney, isAdmin, onSaved, on
         plan_notes: b.plan_notes || '', opening_balance: b.opening_balance ?? '',
       })
       const map = {}
-      ;(rs || []).forEach(r => { map[r.tiffin_type_id] = String(r.price) })
+      ;(rs || []).forEach(r => {
+        map[r.tiffin_type_id] = {
+          half: r.price != null ? String(r.price) : '',
+          full: r.full_price != null ? String(r.full_price) : '',
+        }
+      })
       setRates(map)
     }
     loadMoney()
@@ -258,22 +263,32 @@ function CustomerForm({ customer, tiffinTypes, canSeeMoney, isAdmin, onSaved, on
             <p className="text-xs text-gray-400 -mt-2">
               {t('Leave blank to use the default price.', 'डिफ़ॉल्ट दर के लिए खाली छोड़ें।')}
             </p>
-            <div className="space-y-2">
-              {tiffinTypes.map(tt => (
-                <div key={tt.id} className="flex items-center gap-3">
-                  <span className="flex-1 text-sm text-gray-700">
-                    {lang === 'hi' && tt.name_hi ? tt.name_hi : tt.name_en}
-                    <span className="text-gray-400"> · ₹{tt.default_price}</span>
-                  </span>
-                  <input
-                    type="number"
-                    value={rates[tt.id] ?? ''}
-                    onChange={(e) => setRates(r => ({ ...r, [tt.id]: e.target.value }))}
-                    placeholder={String(tt.default_price)}
-                    className="w-24 rounded-lg border border-gray-300 px-3 py-2 text-right"
-                  />
-                </div>
-              ))}
+            <div className="space-y-3">
+              {tiffinTypes.map(tt => {
+                const name = lang === 'hi' && tt.name_hi ? tt.name_hi : tt.name_en
+                const val = rates[tt.id] || {}
+                const setHalf = (v) => setRates(r => ({ ...r, [tt.id]: { ...(r[tt.id] || {}), half: v } }))
+                const setFull = (v) => setRates(r => ({ ...r, [tt.id]: { ...(r[tt.id] || {}), full: v } }))
+                return (
+                  <div key={tt.id}>
+                    <p className="text-sm text-gray-700">{name}</p>
+                    {tt.has_portions ? (
+                      <div className="grid grid-cols-2 gap-2 mt-1">
+                        <input type="number" value={val.half ?? ''} onChange={(e) => setHalf(e.target.value)}
+                               placeholder={`${t('Half', 'हाफ')} ₹${tt.default_price}`}
+                               className="rounded-lg border border-gray-300 px-3 py-2 text-right text-sm" />
+                        <input type="number" value={val.full ?? ''} onChange={(e) => setFull(e.target.value)}
+                               placeholder={`${t('Full', 'फुल')} ₹${tt.full_price ?? ''}`}
+                               className="rounded-lg border border-gray-300 px-3 py-2 text-right text-sm" />
+                      </div>
+                    ) : (
+                      <input type="number" value={val.half ?? ''} onChange={(e) => setHalf(e.target.value)}
+                             placeholder={`₹${tt.default_price}`}
+                             className="w-full mt-1 rounded-lg border border-gray-300 px-3 py-2 text-right text-sm" />
+                    )}
+                  </div>
+                )
+              })}
             </div>
           </>
         )}

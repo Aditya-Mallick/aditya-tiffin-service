@@ -50,7 +50,7 @@ export function BillEditor({ customer, ym, onClose, onSaved }) {
       ])
       if (!on) return
       const overrides = {}
-      ;(ratesRes.data || []).forEach(r => { overrides[r.tiffin_type_id] = r.price })
+      ;(ratesRes.data || []).forEach(r => { overrides[r.tiffin_type_id] = { half: r.price, full: r.full_price } })
       const types = typesRes.data || []
       const typeName = (id) => {
         const tt = types.find(x => x.id === id)

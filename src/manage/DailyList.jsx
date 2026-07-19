@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { useLang } from '../context/LanguageContext'
 import { useAuth } from './AuthContext'
 import { Modal, Spinner, EmptyState, UndoToast } from './ui'
@@ -70,21 +70,29 @@ export default function DailyList() {
 
   // Display name = real customer name, or the walk-in label.
   const nameOf = (e) => e.customers?.name || e.guest_label || ''
+  const ttById = (id) => tiffinTypes.find(x => x.id === id)
+  const portionOf = (e) => {
+    const tt = ttById(e.tiffin_type_id)
+    return tt?.has_portions ? (e.portion === 'full' ? 'full' : 'half') : null
+  }
+  // Chips (and the tap-to-filter) are keyed by item + portion, so half and
+  // full of the same item are counted and filtered separately.
+  const entryKey = (e) => (e.tiffin_type_id || 'none') + ':' + (portionOf(e) || '')
 
   // Kitchen summary for the whole slot (independent of search / filter).
   const totalTiffins = entries.reduce((s, e) => s + (e.quantity || 1), 0)
   const walkinCount = entries.filter(e => !e.customer_id).length
   const typeCountMap = {}
   for (const e of entries) {
-    const key = e.tiffin_type_id || 'none'
-    const name = e.tiffin_types
-      ? (lang === 'hi' && e.tiffin_types.name_hi ? e.tiffin_types.name_hi : e.tiffin_types.name_en)
-      : t('Not set', 'नहीं चुना')
+    const key = entryKey(e)
+    const tt = ttById(e.tiffin_type_id)
+    let name = tt ? (lang === 'hi' && tt.name_hi ? tt.name_hi : tt.name_en) : t('Not set', 'नहीं चुना')
+    const p = portionOf(e)
+    if (p) name += p === 'full' ? ` (${t('Full', 'फुल')})` : ` (${t('Half', 'हाफ')})`
     if (!typeCountMap[key]) typeCountMap[key] = { key, name, qty: 0 }
     typeCountMap[key].qty += (e.quantity || 1)
   }
   const typeCounts = Object.values(typeCountMap).sort((a, b) => b.qty - a.qty)
-  // Tapping a type chip filters the list; auto-clears if that type isn't present.
   const activeType = typeCounts.some(tc => tc.key === typeFilter) ? typeFilter : null
 
   // Sort A–Z, then apply the type + walk-in filters and the in-list search.
@@ -92,27 +100,53 @@ export default function DailyList() {
   const eq = entrySearch.trim().toLowerCase()
   const shownEntries = sortedEntries.filter(e => {
     if (walkinFilter === 'walkin' && e.customer_id) return false
-    if (activeType && (e.tiffin_type_id || 'none') !== activeType) return false
+    if (activeType && entryKey(e) !== activeType) return false
     if (eq && !(nameOf(e).toLowerCase().includes(eq) || (e.customers?.mobile || '').includes(eq))) return false
     return true
   })
 
-  async function handleAdd(customerId) {
-    await addEntry(date, slot, customerId, defaultTiffinId, 1)
-    await loadEntries()
+  // Build an optimistic row so the entry shows instantly (no wait for the DB).
+  function buildTemp({ customerId = null, label = null, tiffinTypeId, portion = null }) {
+    const cust = customerId ? customers.find(c => c.id === customerId) : null
+    const tt = tiffinTypes.find(x => x.id === tiffinTypeId)
+    return {
+      id: 'tmp-' + Date.now() + Math.random(),
+      customer_id: customerId, guest_label: label,
+      tiffin_type_id: tiffinTypeId, portion, quantity: 1,
+      customers: cust ? { id: cust.id, name: cust.name, mobile: cust.mobile } : null,
+      tiffin_types: tt ? { id: tt.id, name_en: tt.name_en, name_hi: tt.name_hi } : null,
+    }
   }
-  async function handleAddGuest(label) {
+
+  async function handleAdd(customerId, tiffinTypeId = defaultTiffinId, portion = null) {
+    const temp = buildTemp({ customerId, tiffinTypeId, portion })
+    setEntries(prev => [...prev, temp])                       // show immediately
+    const { data, error } = await addEntry(date, slot, customerId, tiffinTypeId, 1, portion)
+    if (error) { setEntries(prev => prev.filter(e => e.id !== temp.id)); return }
+    setEntries(prev => prev.map(e => (e.id === temp.id ? { ...e, id: data.id } : e)))
+  }
+  async function handleAddGuest(label, tiffinTypeId = defaultTiffinId, portion = null) {
     const l = (label || '').trim()
     if (!l) return
-    await addGuestEntry(date, slot, l, defaultTiffinId, 1)
-    await loadEntries()
-    getRecentGuestLabels().then(setGuestLabels)   // refresh suggestions
+    const temp = buildTemp({ label: l, tiffinTypeId, portion })
+    setEntries(prev => [...prev, temp])
+    const { data, error } = await addGuestEntry(date, slot, l, tiffinTypeId, 1, portion)
+    if (error) { setEntries(prev => prev.filter(e => e.id !== temp.id)); return }
+    setEntries(prev => prev.map(e => (e.id === temp.id ? { ...e, id: data.id } : e)))
+    getRecentGuestLabels().then(setGuestLabels)               // refresh suggestions
   }
   async function handleChangeType(entryId, tiffinTypeId) {
+    const tt = tiffinTypes.find(x => x.id === tiffinTypeId)
+    const current = entries.find(x => x.id === entryId)
+    const portion = tt?.has_portions ? (current?.portion || 'half') : null
     setEntries(es => es.map(e => e.id === entryId
-      ? { ...e, tiffin_type_id: tiffinTypeId, tiffin_types: tiffinTypes.find(x => x.id === tiffinTypeId) }
+      ? { ...e, tiffin_type_id: tiffinTypeId, portion, tiffin_types: tt }
       : e))
-    await updateEntry(entryId, { tiffin_type_id: tiffinTypeId })
+    await updateEntry(entryId, { tiffin_type_id: tiffinTypeId, portion })
+  }
+  async function handleChangePortion(entryId, portion) {
+    setEntries(es => es.map(e => (e.id === entryId ? { ...e, portion } : e)))
+    await updateEntry(entryId, { portion })
   }
   async function handleQty(entryId, qty) {
     const q = Math.max(1, qty)
@@ -270,20 +304,32 @@ export default function DailyList() {
                     </button>
                   )}
                 </div>
-                <div className="flex items-center gap-2 mt-2">
+                <div className="flex flex-wrap items-center gap-2 mt-2">
                   <select
                     value={e.tiffin_type_id || ''}
                     disabled={!canEdit}
                     onChange={(ev) => handleChangeType(e.id, ev.target.value)}
-                    className="flex-1 rounded-lg border border-gray-200 px-2 py-1.5 text-sm bg-cream disabled:opacity-70"
+                    className="flex-1 min-w-[130px] rounded-lg border border-gray-200 px-2 py-1.5 text-sm bg-cream disabled:opacity-70"
                   >
                     <option value="">{t('— what was served —', '— क्या दिया —')}</option>
                     {tiffinTypes.map(tt => (
                       <option key={tt.id} value={tt.id}>{ttName(tt, lang)}</option>
                     ))}
                   </select>
+                  {canEdit && ttById(e.tiffin_type_id)?.has_portions && (
+                    <div className="flex rounded-lg overflow-hidden border border-gray-200 text-xs shrink-0">
+                      <button onClick={() => handleChangePortion(e.id, 'half')}
+                              className={`px-2 py-1.5 ${(e.portion || 'half') === 'half' ? 'bg-saffron text-white' : 'bg-white text-gray-600'}`}>
+                        {t('Half', 'हाफ')}
+                      </button>
+                      <button onClick={() => handleChangePortion(e.id, 'full')}
+                              className={`px-2 py-1.5 ${e.portion === 'full' ? 'bg-saffron text-white' : 'bg-white text-gray-600'}`}>
+                        {t('Full', 'फुल')}
+                      </button>
+                    </div>
+                  )}
                   {canEdit && (
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1 shrink-0">
                       <button onClick={() => handleQty(e.id, (e.quantity || 1) - 1)}
                               className="w-8 h-8 rounded-lg bg-cream text-gray-600 text-lg leading-none">−</button>
                       <span className="w-6 text-center text-sm">{e.quantity || 1}</span>
@@ -303,6 +349,9 @@ export default function DailyList() {
         <AddCustomerModal
           customers={customers.filter(c => !presentIds.has(c.id))}
           guestLabels={guestLabels}
+          tiffinTypes={tiffinTypes}
+          lang={lang}
+          defaultTypeId={defaultTiffinId}
           onAdd={handleAdd}
           onAddGuest={handleAddGuest}
           onClose={() => setAdding(false)}
@@ -320,25 +369,58 @@ export default function DailyList() {
   )
 }
 
-function AddCustomerModal({ customers, guestLabels, onAdd, onAddGuest, onClose }) {
+function AddCustomerModal({ customers, guestLabels, tiffinTypes, lang, defaultTypeId, onAdd, onAddGuest, onClose }) {
   const { t } = useLang()
   const [search, setSearch] = useState('')
+  const [typeId, setTypeId] = useState(defaultTypeId || tiffinTypes[0]?.id)
+  const [portion, setPortion] = useState('half')
+  const inputRef = useRef(null)
+  const selType = tiffinTypes.find(tt => tt.id === typeId)
+  const showPortion = !!selType?.has_portions
   const typed = search.trim()
   const q = typed.toLowerCase()
   const list = customers.filter(c => !q || c.name.toLowerCase().includes(q) || (c.mobile || '').includes(q))
   const labelMatches = (guestLabels || []).filter(l => q && l.toLowerCase().includes(q)).slice(0, 6)
   const exactLabel = (guestLabels || []).some(l => l.toLowerCase() === q)
 
+  const afterAdd = () => { setSearch(''); inputRef.current?.focus() }
+  const p = showPortion ? portion : null
+  const addCustomer = (id) => { onAdd(id, typeId, p); afterAdd() }
+  const addGuest = (label) => { onAddGuest(label, typeId, p); afterAdd() }
+
   return (
     <Modal open onClose={onClose} title={t('Add to list', 'सूची में जोड़ें')}>
-      <input autoFocus value={search} onChange={(e) => setSearch(e.target.value)}
+      {/* Which item are we adding */}
+      <p className="text-xs text-gray-400 mb-1">{t('Item being added', 'कौन सा आइटम')}</p>
+      <div className="flex flex-wrap gap-1.5 mb-2">
+        {tiffinTypes.map(tt => (
+          <button key={tt.id} onClick={() => { setTypeId(tt.id); setPortion('half') }}
+            className={`text-xs font-medium rounded-full px-3 py-1.5 ${typeId === tt.id ? 'bg-saffron text-white' : 'bg-cream text-gray-600'}`}>
+            {ttName(tt, lang)}
+          </button>
+        ))}
+      </div>
+      {showPortion && (
+        <div className="flex rounded-lg overflow-hidden border border-gray-300 w-max mb-3">
+          <button onClick={() => setPortion('half')}
+                  className={`px-4 py-1.5 text-sm font-medium ${portion === 'half' ? 'bg-saffron text-white' : 'bg-white text-gray-600'}`}>
+            {t('Half', 'हाफ')}
+          </button>
+          <button onClick={() => setPortion('full')}
+                  className={`px-4 py-1.5 text-sm font-medium ${portion === 'full' ? 'bg-saffron text-white' : 'bg-white text-gray-600'}`}>
+            {t('Full', 'फुल')}
+          </button>
+        </div>
+      )}
+
+      <input ref={inputRef} autoFocus value={search} onChange={(e) => setSearch(e.target.value)}
              placeholder={t('Search customer, or type a bed / walk-in…', 'ग्राहक खोजें, या बेड / वॉक-इन लिखें…')}
              className="w-full rounded-lg border border-gray-300 px-4 py-2.5 mb-3 focus:outline-none focus:ring-2 focus:ring-saffron" />
 
       <div className="h-64 overflow-y-auto space-y-2">
         {/* Existing customers */}
         {list.map(c => (
-          <button key={c.id} onClick={() => { onAdd(c.id); setSearch('') }}
+          <button key={c.id} onClick={() => addCustomer(c.id)}
                   className="w-full text-left bg-cream rounded-lg p-3 flex items-center justify-between">
             <span><span className="font-medium text-gray-800">{c.name}</span>
               <span className="text-gray-400 text-sm"> · {c.mobile}</span></span>
@@ -351,7 +433,7 @@ function AddCustomerModal({ customers, guestLabels, onAdd, onAddGuest, onClose }
           <div className="pt-1">
             <p className="text-xs text-gray-400 px-1 mb-1">{t('Walk-in / hotel bed', 'वॉक-इन / होटल बेड')}</p>
             {typed && !exactLabel && (
-              <button onClick={() => { onAddGuest(typed); setSearch('') }}
+              <button onClick={() => addGuest(typed)}
                       className="w-full text-left bg-gold/10 rounded-lg p-3 flex items-center justify-between">
                 <span className="text-gray-800">
                   {t('Add', 'जोड़ें')} “<span className="font-semibold">{typed}</span>” {t('as walk-in', 'वॉक-इन')}
@@ -360,7 +442,7 @@ function AddCustomerModal({ customers, guestLabels, onAdd, onAddGuest, onClose }
               </button>
             )}
             {labelMatches.map(l => (
-              <button key={l} onClick={() => { onAddGuest(l); setSearch('') }}
+              <button key={l} onClick={() => addGuest(l)}
                       className="w-full text-left bg-cream rounded-lg p-3 flex items-center justify-between mt-1">
                 <span className="text-gray-800">{l}
                   <span className="text-gray-400 text-xs"> · {t('walk-in', 'वॉक-इन')}</span></span>

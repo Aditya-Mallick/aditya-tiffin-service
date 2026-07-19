@@ -106,6 +106,8 @@ function MenuForm({ item, onClose, onSaved, onRemove }) {
   const [nameHi, setNameHi] = useState(item?.name_hi || '')
   const [price, setPrice] = useState(item?.default_price ?? '')
   const [category, setCategory] = useState(item?.category || 'tiffin')
+  const [hasPortions, setHasPortions] = useState(item?.has_portions || false)
+  const [fullPrice, setFullPrice] = useState(item?.full_price ?? '')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
 
@@ -116,6 +118,8 @@ function MenuForm({ item, onClose, onSaved, onRemove }) {
     const { error } = await saveTiffinType({
       id: item?.id, name_en: nameEn, name_hi: nameHi,
       default_price: price === '' ? 0 : price, category,
+      has_portions: hasPortions,
+      full_price: hasPortions ? (fullPrice === '' ? 0 : fullPrice) : null,
     })
     setBusy(false)
     if (error) { setError(error.message); return }
@@ -138,7 +142,9 @@ function MenuForm({ item, onClose, onSaved, onRemove }) {
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">{t('Default price (₹)', 'डिफ़ॉल्ट दर (₹)')}</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              {hasPortions ? t('Half price (₹)', 'हाफ दर (₹)') : t('Price (₹)', 'दर (₹)')}
+            </label>
             <input type="number" inputMode="numeric" value={price} onChange={(e) => setPrice(e.target.value)}
                    className="w-full rounded-lg border border-gray-300 px-4 py-2.5" />
           </div>
@@ -150,6 +156,18 @@ function MenuForm({ item, onClose, onSaved, onRemove }) {
             </select>
           </div>
         </div>
+
+        <label className="flex items-center gap-2 text-sm text-gray-700">
+          <input type="checkbox" checked={hasPortions} onChange={(e) => setHasPortions(e.target.checked)} />
+          {t('Has half / full plate', 'हाफ / फुल प्लेट है')}
+        </label>
+        {hasPortions && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{t('Full plate price (₹)', 'फुल प्लेट दर (₹)')}</label>
+            <input type="number" inputMode="numeric" value={fullPrice} onChange={(e) => setFullPrice(e.target.value)}
+                   className="w-full rounded-lg border border-gray-300 px-4 py-2.5" />
+          </div>
+        )}
 
         {error && <p className="text-red-600 text-sm">{error}</p>}
 

@@ -49,7 +49,7 @@ export function CustomerStatement({ customer, onBack, onEdit, isAdmin }) {
       if (!on) return
 
       const overrides = {}
-      ;(ratesRes.data || []).forEach(r => { overrides[r.tiffin_type_id] = r.price })
+      ;(ratesRes.data || []).forEach(r => { overrides[r.tiffin_type_id] = { half: r.price, full: r.full_price } })
       const c = computeCharges(entriesRes.data || [], overrides, typesRes.data || [])
       const lines = c.lines.map(l => ({
         name: lang === 'hi' && l.name_hi ? l.name_hi : l.name_en,
