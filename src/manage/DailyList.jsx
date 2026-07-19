@@ -335,10 +335,10 @@ function AddCustomerModal({ customers, guestLabels, onAdd, onAddGuest, onClose }
              placeholder={t('Search customer, or type a bed / walk-in…', 'ग्राहक खोजें, या बेड / वॉक-इन लिखें…')}
              className="w-full rounded-lg border border-gray-300 px-4 py-2.5 mb-3 focus:outline-none focus:ring-2 focus:ring-saffron" />
 
-      <div className="max-h-64 overflow-y-auto space-y-2">
+      <div className="h-64 overflow-y-auto space-y-2">
         {/* Existing customers */}
         {list.map(c => (
-          <button key={c.id} onClick={() => onAdd(c.id)}
+          <button key={c.id} onClick={() => { onAdd(c.id); setSearch('') }}
                   className="w-full text-left bg-cream rounded-lg p-3 flex items-center justify-between">
             <span><span className="font-medium text-gray-800">{c.name}</span>
               <span className="text-gray-400 text-sm"> · {c.mobile}</span></span>
