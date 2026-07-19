@@ -27,16 +27,16 @@ export default function ManageLayout() {
   return (
     <div className="min-h-screen bg-cream">
       <header className="bg-white shadow-card">
-        <div className="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between">
-          <div>
-            <p className="font-bold text-tgreen-dark leading-tight">
+        <div className="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between gap-2">
+          <div className="min-w-0">
+            <p className="text-sm font-bold text-tgreen-dark leading-tight truncate">
               {t('Aditya Tiffin Service', 'आदित्य टिफिन सेवा')}
             </p>
-            <p className="text-xs text-gray-500">
+            <p className="text-xs text-gray-500 truncate">
               {profile?.full_name}{roleLabel ? ` · ${roleLabel}` : ''}
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             {isAdmin && (
               <Link to="/manage/settings" aria-label={t('Settings', 'सेटिंग्स')}
                     className="text-gray-500 hover:text-gray-700 p-1.5">

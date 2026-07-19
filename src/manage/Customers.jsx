@@ -274,17 +274,25 @@ function CustomerForm({ customer, tiffinTypes, canSeeMoney, isAdmin, onSaved, on
                     <p className="text-sm text-gray-700">{name}</p>
                     {tt.has_portions ? (
                       <div className="grid grid-cols-2 gap-2 mt-1">
-                        <input type="number" value={val.half ?? ''} onChange={(e) => setHalf(e.target.value)}
-                               placeholder={`${t('Half', 'हाफ')} ₹${tt.default_price}`}
-                               className="rounded-lg border border-gray-300 px-3 py-2 text-right text-sm" />
-                        <input type="number" value={val.full ?? ''} onChange={(e) => setFull(e.target.value)}
-                               placeholder={`${t('Full', 'फुल')} ₹${tt.full_price ?? ''}`}
-                               className="rounded-lg border border-gray-300 px-3 py-2 text-right text-sm" />
+                        <div>
+                          <span className="block text-[11px] text-gray-400 mb-0.5">
+                            {t('Half', 'हाफ')} <span className="text-gray-300">₹{tt.default_price}</span>
+                          </span>
+                          <input type="number" inputMode="numeric" value={val.half ?? ''} onChange={(e) => setHalf(e.target.value)}
+                                 placeholder="—" className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-right text-sm" />
+                        </div>
+                        <div>
+                          <span className="block text-[11px] text-gray-400 mb-0.5">
+                            {t('Full', 'फुल')} <span className="text-gray-300">₹{tt.full_price ?? ''}</span>
+                          </span>
+                          <input type="number" inputMode="numeric" value={val.full ?? ''} onChange={(e) => setFull(e.target.value)}
+                                 placeholder="—" className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-right text-sm" />
+                        </div>
                       </div>
                     ) : (
-                      <input type="number" value={val.half ?? ''} onChange={(e) => setHalf(e.target.value)}
+                      <input type="number" inputMode="numeric" value={val.half ?? ''} onChange={(e) => setHalf(e.target.value)}
                              placeholder={`₹${tt.default_price}`}
-                             className="w-full mt-1 rounded-lg border border-gray-300 px-3 py-2 text-right text-sm" />
+                             className="w-full mt-1 rounded-lg border border-gray-300 px-3 py-2.5 text-right text-sm" />
                     )}
                   </div>
                 )
