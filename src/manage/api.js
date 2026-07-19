@@ -218,10 +218,12 @@ export async function restoreEntry(id) {
 }
 
 // Copy a whole list from one date/slot into another (server-side RPC).
-export async function copyDailyList(sourceDate, sourceSlot, targetDate, targetSlot) {
+// Copies people (customers + walk-ins); everyone defaults to `tiffinTypeId`.
+export async function copyDailyList(sourceDate, sourceSlot, targetDate, targetSlot, tiffinTypeId) {
   return supabase.rpc('copy_daily_list', {
     p_source_date: sourceDate, p_source_slot: sourceSlot,
     p_target_date: targetDate, p_target_slot: targetSlot,
+    p_tiffin_type_id: tiffinTypeId,
   })
 }
 

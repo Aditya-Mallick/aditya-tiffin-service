@@ -166,7 +166,7 @@ export default function DailyList() {
   }
   async function doCopy(sourceDate, sourceSlot) {
     setCopyOpen(false)
-    const { data, error } = await copyDailyList(sourceDate, sourceSlot, date, slot)
+    const { data, error } = await copyDailyList(sourceDate, sourceSlot, date, slot, defaultTiffinId)
     if (error) { setNote(t('Copy failed: ', 'कॉपी विफल: ') + error.message); return }
     setNote(t(`Copied ${data} customer(s).`, `${data} ग्राहक कॉपी किए।`))
     loadEntries()
