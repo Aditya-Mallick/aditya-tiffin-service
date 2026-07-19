@@ -275,18 +275,14 @@ function CustomerForm({ customer, tiffinTypes, canSeeMoney, isAdmin, onSaved, on
                     {tt.has_portions ? (
                       <div className="grid grid-cols-2 gap-2 mt-1">
                         <div>
-                          <span className="block text-[11px] text-gray-400 mb-0.5">
-                            {t('Half', 'हाफ')} <span className="text-gray-300">₹{tt.default_price}</span>
-                          </span>
+                          <span className="block text-[11px] text-gray-400 mb-0.5">{t('Half', 'हाफ')}</span>
                           <input type="number" inputMode="numeric" value={val.half ?? ''} onChange={(e) => setHalf(e.target.value)}
-                                 placeholder="—" className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-right text-sm" />
+                                 placeholder={`₹${tt.default_price}`} className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-right text-sm" />
                         </div>
                         <div>
-                          <span className="block text-[11px] text-gray-400 mb-0.5">
-                            {t('Full', 'फुल')} <span className="text-gray-300">₹{tt.full_price ?? ''}</span>
-                          </span>
+                          <span className="block text-[11px] text-gray-400 mb-0.5">{t('Full', 'फुल')}</span>
                           <input type="number" inputMode="numeric" value={val.full ?? ''} onChange={(e) => setFull(e.target.value)}
-                                 placeholder="—" className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-right text-sm" />
+                                 placeholder={`₹${tt.full_price ?? ''}`} className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-right text-sm" />
                         </div>
                       </div>
                     ) : (
