@@ -5,7 +5,7 @@ import { Modal, Spinner, EmptyState, UndoToast } from './ui'
 import {
   getDailyEntries, getTiffinTypes, listCustomers, addEntry, addGuestEntry,
   getRecentGuestLabels, updateEntry, softRemoveEntry, restoreEntry, copyDailyList,
-  todayIST, addDays,
+  todayIST, addDays, formatDayLong,
 } from './api'
 
 const SLOTS = [
@@ -180,9 +180,13 @@ export default function DailyList() {
         <button onClick={() => setDate(d => addDays(d, -1))}
                 className="px-3 py-2 rounded-lg bg-white shadow-card text-gray-600">‹</button>
         <div className="flex-1 text-center">
-          <input type="date" value={date} max={isAdmin ? undefined : today}
-                 onChange={(e) => setDate(e.target.value)}
-                 className="text-center font-semibold text-gray-800 bg-transparent" />
+          <label className="relative inline-block cursor-pointer">
+            <span className="font-semibold text-gray-800">{formatDayLong(date, lang)}</span>
+            <input type="date" value={date} max={isAdmin ? undefined : today}
+                   onClick={(e) => e.currentTarget.showPicker?.()}
+                   onChange={(e) => setDate(e.target.value)}
+                   className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+          </label>
           {date === today && <p className="text-xs text-tgreen">{t('Today', 'आज')}</p>}
         </div>
         <button onClick={() => setDate(d => addDays(d, 1))}

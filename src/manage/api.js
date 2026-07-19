@@ -303,6 +303,16 @@ export function addMonths(ym, delta) {
   return new Date(Date.UTC(y, m - 1 + delta, 1)).toISOString().slice(0, 7)
 }
 
+// e.g. '2026-07-16' -> '16 July 2026 (Thursday)'.
+export function formatDayLong(dateStr, lang = 'en') {
+  const [y, m, d] = String(dateStr).split('-').map(Number)
+  const dt = new Date(Date.UTC(y, m - 1, d))
+  const locale = lang === 'hi' ? 'hi-IN' : 'en-GB'
+  const main = dt.toLocaleDateString(locale, { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' })
+  const weekday = dt.toLocaleDateString(locale, { weekday: 'long', timeZone: 'UTC' })
+  return `${main} (${weekday})`
+}
+
 // e.g. '2026-07' -> 'July 2026' (or Hindi month name when lang === 'hi').
 export function monthLabel(ym, lang = 'en') {
   const [y, m] = ym.split('-').map(Number)
