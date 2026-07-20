@@ -27,6 +27,7 @@ export default function Returns() {
   const [slot, setSlot] = useState(defaultSlot())
   const [entries, setEntries] = useState([])
   const [loading, setLoading] = useState(true)
+  const [search, setSearch] = useState('')
 
   // Staff may change returns for today + yesterday only; admin/owner any date.
   const canEdit = isAdmin || date === today || date === addDays(today, -1)
@@ -50,6 +51,10 @@ export default function Returns() {
     if (aDone !== bDone) return aDone ? 1 : -1
     return nameOf(a).localeCompare(nameOf(b))
   })
+  const q = search.trim().toLowerCase()
+  const shown = q
+    ? sorted.filter(e => nameOf(e).toLowerCase().includes(q) || (e.customers?.mobile || '').includes(q))
+    : sorted
 
   async function handleReturn(entry, newReturned) {
     const q = entry.quantity || 1
@@ -120,11 +125,21 @@ export default function Returns() {
         </div>
       </div>
 
+      {/* Search this list */}
+      <input
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        placeholder={t('Search this list…', 'इस सूची में खोजें…')}
+        className="w-full rounded-lg border border-gray-300 px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-600"
+      />
+
       {loading ? <Spinner /> : entries.length === 0 ? (
         <EmptyState text={t('No tiffins given in this slot.', 'इस समय कोई टिफिन नहीं दिया।')} />
+      ) : shown.length === 0 ? (
+        <EmptyState text={t('No match in this list.', 'इस सूची में कोई मेल नहीं।')} />
       ) : (
         <div className="space-y-2">
-          {sorted.map((e, i) => {
+          {shown.map((e, i) => {
             const q = e.quantity || 1
             const back = e.returned_qty || 0
             const done = back >= q
