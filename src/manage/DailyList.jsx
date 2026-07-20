@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useLang } from '../context/LanguageContext'
 import { useAuth } from './AuthContext'
-import { Modal, Spinner, EmptyState, UndoToast } from './ui'
+import { Modal, ConfirmDialog, Spinner, EmptyState, UndoToast } from './ui'
 import {
   getDailyEntries, getTiffinTypes, listCustomers, addEntry, addGuestEntry,
   getRecentGuestLabels, updateEntry, softRemoveEntry, restoreEntry, copyDailyList,
@@ -37,6 +37,7 @@ export default function DailyList() {
   const [loading, setLoading] = useState(true)
   const [adding, setAdding] = useState(false)
   const [copyOpen, setCopyOpen] = useState(false)
+  const [confirmCopy, setConfirmCopy] = useState(null)   // { sourceDate, sourceSlot }
   const [undo, setUndo] = useState(null)     // { message, entryId }
   const [note, setNote] = useState('')       // transient status line
   const [entrySearch, setEntrySearch] = useState('')
@@ -70,6 +71,7 @@ export default function DailyList() {
 
   // Display name = real customer name, or the walk-in label.
   const nameOf = (e) => e.customers?.name || e.guest_label || ''
+  const slotName = (key) => { const s = SLOTS.find(x => x.key === key); return s ? t(s.en, s.hi) : key }
   const ttById = (id) => tiffinTypes.find(x => x.id === id)
   const portionOf = (e) => {
     const tt = ttById(e.tiffin_type_id)
@@ -264,7 +266,7 @@ export default function DailyList() {
       {/* Copy from another day (own row so it never overflows) */}
       {canEdit && (
         <div className="grid grid-cols-2 gap-2">
-          <button onClick={() => doCopy(addDays(date, -1), slot)}
+          <button onClick={() => setConfirmCopy({ sourceDate: addDays(date, -1), sourceSlot: slot })}
                   className="rounded-lg bg-white shadow-card text-sm text-gray-700 py-2">
             {t('Copy yesterday', 'कल की कॉपी')}
           </button>
@@ -365,8 +367,20 @@ export default function DailyList() {
       {/* Copy-from modal */}
       {copyOpen && (
         <CopyFromModal defaultDate={addDays(date, -1)} defaultSlot={slot}
-                       onCopy={doCopy} onClose={() => setCopyOpen(false)} />
+                       onCopy={(d, s) => { setCopyOpen(false); setConfirmCopy({ sourceDate: d, sourceSlot: s }) }}
+                       onClose={() => setCopyOpen(false)} />
       )}
+
+      <ConfirmDialog
+        open={Boolean(confirmCopy)}
+        title={t('Copy this list?', 'यह सूची कॉपी करें?')}
+        message={confirmCopy ? t(
+          `Copy the ${slotName(confirmCopy.sourceSlot)} list from ${formatDayLong(confirmCopy.sourceDate, lang)} into this list? Everyone is added as veg tiffin; people already here are kept.`,
+          `${formatDayLong(confirmCopy.sourceDate, lang)} की ${slotName(confirmCopy.sourceSlot)} सूची इसमें कॉपी करें? सभी वेज टिफिन के रूप में जुड़ेंगे; पहले से मौजूद लोग वैसे ही रहेंगे।`) : ''}
+        confirmLabel={t('Copy', 'कॉपी करें')}
+        onCancel={() => setConfirmCopy(null)}
+        onConfirm={() => { const c = confirmCopy; setConfirmCopy(null); doCopy(c.sourceDate, c.sourceSlot) }}
+      />
 
       <UndoToast message={undo?.message} onUndo={doUndo} onDismiss={() => setUndo(null)} />
     </div>
