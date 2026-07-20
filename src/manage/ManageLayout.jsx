@@ -16,13 +16,14 @@ export default function ManageLayout() {
 
   const tabs = [
     { to: '/manage', end: true, en: 'Today', hi: 'आज' },
+    { to: '/manage/returns', end: false, en: 'Returns', hi: 'वापसी', active: 'text-blue-600' },
     { to: '/manage/customers', end: false, en: 'Customers', hi: 'ग्राहक' },
     ...(canSeeMoney ? [
       { to: '/manage/payments', end: false, en: 'Payments', hi: 'भुगतान' },
       { to: '/manage/bills', end: false, en: 'Bills', hi: 'बिल' },
     ] : []),
   ]
-  const gridCols = { 2: 'grid-cols-2', 3: 'grid-cols-3', 4: 'grid-cols-4' }[tabs.length] || 'grid-cols-2'
+  const gridCols = { 2: 'grid-cols-2', 3: 'grid-cols-3', 4: 'grid-cols-4', 5: 'grid-cols-5' }[tabs.length] || 'grid-cols-3'
 
   return (
     <div className="min-h-screen bg-cream">
@@ -65,7 +66,7 @@ export default function ManageLayout() {
           {tabs.map(tab => (
             <NavLink key={tab.to} to={tab.to} end={tab.end}
               className={({ isActive }) =>
-                `py-3 text-center text-xs sm:text-sm font-semibold ${isActive ? 'text-saffron' : 'text-gray-500'}`}>
+                `py-3 text-center text-[11px] sm:text-sm font-semibold truncate px-0.5 ${isActive ? (tab.active || 'text-saffron') : 'text-gray-500'}`}>
               {t(tab.en, tab.hi)}
             </NavLink>
           ))}

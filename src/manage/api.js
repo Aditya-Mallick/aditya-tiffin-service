@@ -166,7 +166,7 @@ export async function restoreCustomer(id) {
 export async function getDailyEntries(dateStr, slot) {
   return supabase
     .from('delivery_entries')
-    .select('id, quantity, notes, tiffin_type_id, portion, customer_id, guest_label, ' +
+    .select('id, quantity, returned_qty, notes, tiffin_type_id, portion, customer_id, guest_label, ' +
             'customers ( id, name, mobile ), tiffin_types ( id, name_en, name_hi )')
     .eq('entry_date', dateStr)
     .eq('slot', slot)
@@ -207,6 +207,11 @@ export async function getRecentGuestLabels() {
 
 export async function updateEntry(id, fields) {
   return supabase.from('delivery_entries').update(fields).eq('id', id)
+}
+
+// Set how many of an entry's boxes have been returned (RPC enforces who/when).
+export async function setReturn(entryId, returnedQty) {
+  return supabase.rpc('mark_return', { p_entry_id: entryId, p_returned: returnedQty })
 }
 
 export async function softRemoveEntry(id) {

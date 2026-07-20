@@ -4,6 +4,7 @@ import Login from './Login'
 import ProtectedRoute from './ProtectedRoute'
 import ManageLayout from './ManageLayout'
 import DailyList from './DailyList'
+import Returns from './Returns'
 import Customers from './Customers'
 import Payments from './Payments'
 import Bills from './Billing'
@@ -22,6 +23,7 @@ export default function ManageApp() {
         <Route element={<ProtectedRoute />}>
           <Route element={<ManageLayout />}>
             <Route index element={<DailyList />} />
+            <Route path="returns" element={<Returns />} />
             <Route path="customers" element={<Customers />} />
             <Route path="payments" element={<Payments />} />
             <Route path="bills" element={<Bills />} />
