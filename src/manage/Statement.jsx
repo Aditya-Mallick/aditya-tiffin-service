@@ -3,6 +3,7 @@ import { useLang } from '../context/LanguageContext'
 import { Spinner } from './ui'
 import { RecordModal } from './Payments'
 import { BillEditor } from './Billing'
+import { AttendanceGrid } from './AttendanceGrid'
 import {
   getEntriesForCustomerRange, getCustomerRates, getTiffinTypes, getCustomerBilling,
   listPayments, monthBounds, currentMonthIST, addMonths, monthLabel, computeCharges, formatINR, balanceParts,
@@ -30,6 +31,8 @@ export function CustomerStatement({ customer, onBack, onEdit, isAdmin }) {
   const [calc, setCalc] = useState(null)
   const [plan, setPlan] = useState(null)
   const [monthPayments, setMonthPayments] = useState([])
+  const [rawEntries, setRawEntries] = useState([])
+  const [types, setTypes] = useState([])
   const [showRecord, setShowRecord] = useState(false)
   const [showBill, setShowBill] = useState(false)
   const [tick, setTick] = useState(0)
@@ -61,6 +64,8 @@ export function CustomerStatement({ customer, onBack, onEdit, isAdmin }) {
 
       setPlan(billingRes.data || null)
       setMonthPayments(monthPays)
+      setRawEntries(entriesRes.data || [])
+      setTypes(typesRes.data || [])
       setCalc({
         lines, unspecified: c.unspecified, bySlot: c.bySlot, days: c.days, tiffins: c.tiffins,
         charges: c.charges, paymentsMonth, opening,
@@ -184,6 +189,12 @@ export function CustomerStatement({ customer, onBack, onEdit, isAdmin }) {
                 )}
               </div>
             )}
+          </div>
+
+          {/* Day-by-day attendance */}
+          <div className="bg-white rounded-xl shadow-card p-4">
+            <p className="text-sm font-semibold text-gray-700 mb-2">{t('Day by day', 'दिन-प्रतिदिन')}</p>
+            <AttendanceGrid entries={rawEntries} types={types} ym={ym} lang={lang} />
           </div>
 
           {/* Payments this month */}

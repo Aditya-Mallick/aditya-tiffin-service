@@ -231,7 +231,7 @@ export async function copyDailyList(sourceDate, sourceSlot, targetDate, targetSl
 export async function getEntriesForCustomerRange(customerId, startStr, endStr) {
   return supabase
     .from('delivery_entries')
-    .select('id, entry_date, slot, quantity, tiffin_type_id')
+    .select('id, entry_date, slot, quantity, tiffin_type_id, portion')
     .eq('customer_id', customerId)
     .gte('entry_date', startStr)
     .lte('entry_date', endStr)

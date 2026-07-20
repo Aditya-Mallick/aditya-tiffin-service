@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { useLang } from '../context/LanguageContext'
 import { useAuth } from './AuthContext'
 import { Modal, Spinner, EmptyState } from './ui'
+import { AttendanceGrid } from './AttendanceGrid'
 import {
   getEntriesForCustomerRange, getCustomerRates, getTiffinTypes, listPayments,
   getBill, getBillLines, getPreviousClosing, saveBill, listBills, listCustomers,
@@ -34,6 +35,9 @@ export function BillEditor({ customer, ym, onClose, onSaved }) {
   const [notes, setNotes] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [rawEntries, setRawEntries] = useState([])
+  const [allTypes, setAllTypes] = useState([])
+  const [showAttendance, setShowAttendance] = useState(false)
 
   useEffect(() => {
     let on = true
@@ -52,6 +56,8 @@ export function BillEditor({ customer, ym, onClose, onSaved }) {
       const overrides = {}
       ;(ratesRes.data || []).forEach(r => { overrides[r.tiffin_type_id] = { half: r.price, full: r.full_price } })
       const types = typesRes.data || []
+      setRawEntries(entriesRes.data || [])
+      setAllTypes(types)
       const typeName = (id) => {
         const tt = types.find(x => x.id === id)
         return tt ? (lang === 'hi' && tt.name_hi ? tt.name_hi : tt.name_en) : ''
@@ -237,6 +243,18 @@ export function BillEditor({ customer, ym, onClose, onSaved }) {
                 : formatINR(closingParts.amount) + (closingParts.kind === 'advance' ? ' ' + t('advance', 'अग्रिम') : '')}
             </span>
           </div>
+        </div>
+
+        {/* Day-by-day attendance (collapsible) */}
+        <div>
+          <button onClick={() => setShowAttendance(v => !v)} className="text-saffron-dark text-sm font-medium">
+            {showAttendance ? t('Hide day-by-day', 'दिन-प्रतिदिन छिपाएं') : t('View day-by-day', 'दिन-प्रतिदिन देखें')}
+          </button>
+          {showAttendance && (
+            <div className="mt-2">
+              <AttendanceGrid entries={rawEntries} types={allTypes} ym={ym} lang={lang} />
+            </div>
+          )}
         </div>
 
         {error && <p className="text-red-600 text-sm">{error}</p>}
