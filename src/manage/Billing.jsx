@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { useLang } from '../context/LanguageContext'
 import { useAuth } from './AuthContext'
 import { Modal, Spinner, EmptyState } from './ui'
-import { AttendanceGrid } from './AttendanceGrid'
+import { AttendanceGrid, attendanceTextLines } from './AttendanceGrid'
 import {
   getEntriesForCustomerRange, getCustomerRates, getTiffinTypes, listPayments,
   getBill, getBillLines, getPreviousClosing, saveBill, listBills, listCustomers,
@@ -10,10 +10,12 @@ import {
 } from './api'
 
 const STATUS = {
-  draft:     { en: 'Draft', hi: 'ड्राफ्ट', cls: 'bg-gray-100 text-gray-600' },
-  finalized: { en: 'Finalized', hi: 'फाइनल', cls: 'bg-blue-100 text-blue-700' },
-  sent:      { en: 'Sent', hi: 'भेजा', cls: 'bg-amber-100 text-amber-700' },
-  paid:      { en: 'Paid', hi: 'भुगतान', cls: 'bg-tgreen/15 text-tgreen-dark' },
+  saved:     { en: 'Saved', hi: 'सेव', cls: 'bg-gray-100 text-gray-600' },
+  sent:      { en: 'Sent', hi: 'भेजा', cls: 'bg-tgreen/15 text-tgreen-dark' },
+  // legacy statuses (from before) map to a sensible label
+  draft:     { en: 'Saved', hi: 'सेव', cls: 'bg-gray-100 text-gray-600' },
+  finalized: { en: 'Saved', hi: 'सेव', cls: 'bg-gray-100 text-gray-600' },
+  paid:      { en: 'Sent', hi: 'भेजा', cls: 'bg-tgreen/15 text-tgreen-dark' },
 }
 
 function waNumber(mobile) {
@@ -153,6 +155,12 @@ export function BillEditor({ customer, ym, onClose, onSaved }) {
     if (closingParts.kind === 'due') L.push(t('Balance due', 'कुल बकाया') + ': ' + formatINR(closingParts.amount))
     else if (closingParts.kind === 'advance') L.push(t('Advance balance', 'अग्रिम शेष') + ': ' + formatINR(closingParts.amount))
     else L.push(t('Fully settled', 'पूरा भुगतान'))
+    const att = attendanceTextLines(rawEntries, allTypes, ym, lang)
+    if (att.length) {
+      L.push('', t('Day-wise (M/A/E = morning/afternoon/evening, X = absent):',
+                   'दिन-वार (M/A/E = सुबह/दोपहर/शाम, X = अनुपस्थित):'))
+      att.forEach(l => L.push(l))
+    }
     L.push('', t('Thank you!', 'धन्यवाद!'))
     return L.join('\n')
   }
@@ -260,14 +268,10 @@ export function BillEditor({ customer, ym, onClose, onSaved }) {
         {error && <p className="text-red-600 text-sm">{error}</p>}
 
         <div className="grid grid-cols-2 gap-2">
-          <button onClick={() => handleSave('draft')} disabled={busy}
-                  className="py-2.5 rounded-lg border border-gray-300 font-medium text-gray-700">{t('Save draft', 'ड्राफ्ट सेव')}</button>
-          <button onClick={() => handleSave('finalized')} disabled={busy}
-                  className="py-2.5 rounded-lg font-semibold text-white bg-saffron hover:bg-saffron-dark">{t('Finalize', 'फाइनल करें')}</button>
+          <button onClick={() => handleSave('saved')} disabled={busy}
+                  className="py-2.5 rounded-lg border border-gray-300 font-medium text-gray-700">{t('Save', 'सेव करें')}</button>
           <button onClick={handleWhatsApp} disabled={busy}
                   className="py-2.5 rounded-lg font-semibold text-white bg-tgreen hover:bg-tgreen-dark">{t('Send on WhatsApp', 'WhatsApp भेजें')}</button>
-          <button onClick={() => handleSave('paid')} disabled={busy}
-                  className="py-2.5 rounded-lg border border-tgreen text-tgreen-dark font-medium">{t('Mark paid', 'भुगतान हुआ')}</button>
         </div>
         <button onClick={onClose} className="w-full text-gray-500 text-sm">{t('Close', 'बंद करें')}</button>
       </div>

@@ -14,6 +14,39 @@ function shortItem(tt, portion, lang) {
   return name
 }
 
+// Plain-text version of the attendance, for the WhatsApp bill.
+// e.g. "16 Wed — M:Veg  E:Chicken½"  (X = absent)
+export function attendanceTextLines(entries, types, ym, lang) {
+  const typeById = Object.fromEntries((types || []).map(tt => [tt.id, tt]))
+  const byDate = {}; const usedSlots = new Set(); let firstDay = 99
+  for (const e of entries || []) {
+    const day = Number(e.entry_date.slice(8, 10))
+    firstDay = Math.min(firstDay, day); usedSlots.add(e.slot)
+    ;(byDate[day] = byDate[day] || {})[e.slot] = e
+  }
+  const order = SLOT_ORDER.filter(s => usedSlots.has(s.key)).map(s => s.key)
+  if (!entries || entries.length === 0 || order.length === 0) return []
+  const { end } = monthBounds(ym)
+  const daysInMonth = Number(end.slice(8, 10))
+  const endDay = ym === currentMonthIST() ? Number(todayIST().slice(8, 10)) : daysInMonth
+  const [yy, mm] = ym.split('-').map(Number)
+  const letter = { morning: 'M', afternoon: 'A', evening: 'E' }
+  const codeFor = (e) => {
+    if (!e) return 'X'
+    const tt = typeById[e.tiffin_type_id]
+    if (!tt) return '?'
+    return shortItem(tt, e.portion, lang).replace(/\s+/g, '')
+  }
+  const lines = []
+  for (let d = firstDay; d <= Math.min(endDay, daysInMonth); d++) {
+    const wd = new Date(Date.UTC(yy, mm - 1, d))
+      .toLocaleDateString(lang === 'hi' ? 'hi-IN' : 'en-GB', { weekday: 'short', timeZone: 'UTC' })
+    const parts = order.map(s => `${letter[s]}:${codeFor(byDate[d]?.[s])}`)
+    lines.push(`${d} ${wd} — ${parts.join('  ')}`)
+  }
+  return lines
+}
+
 // Day-by-day attendance: which slot, what was taken, or ✕ if absent.
 // Matches the manual sheet: ✓ for veg, ✕ for absent, others shown by name.
 export function AttendanceGrid({ entries, types, ym, lang }) {
