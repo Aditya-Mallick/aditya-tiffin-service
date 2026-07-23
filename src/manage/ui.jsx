@@ -63,6 +63,33 @@ export function UndoToast({ message, onUndo, onDismiss, duration = 6000 }) {
   )
 }
 
+// Toggle between the detailed cards and a tight name-only "glance" list.
+export function ViewToggle({ view, setView }) {
+  const { t } = useLang()
+  const cls = (on) => `px-3 py-1.5 text-xs font-medium ${on ? 'bg-gray-800 text-white' : 'bg-white text-gray-600'}`
+  return (
+    <div className="flex rounded-lg overflow-hidden border border-gray-300">
+      <button onClick={() => setView('details')} className={cls(view === 'details')}>{t('Details', 'विवरण')}</button>
+      <button onClick={() => setView('glance')} className={cls(view === 'glance')}>{t('Names', 'नाम')}</button>
+    </div>
+  )
+}
+
+// Dense, numbered, name-only list — for seeing the whole list at a glance.
+export function GlanceList({ names }) {
+  if (!names || names.length === 0) return null
+  return (
+    <div className="bg-white rounded-xl shadow-card divide-y divide-gray-100">
+      {names.map((name, i) => (
+        <div key={i} className="flex items-baseline gap-2 px-3 py-1.5">
+          <span className="text-xs text-gray-400 w-6 text-right shrink-0">{i + 1}</span>
+          <span className="text-sm text-gray-800 truncate">{name}</span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 export function Spinner({ label }) {
   const { t } = useLang()
   return (

@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { PackageCheck } from 'lucide-react'
 import { useLang } from '../context/LanguageContext'
 import { useAuth } from './AuthContext'
-import { Spinner, EmptyState } from './ui'
+import { Spinner, EmptyState, ViewToggle, GlanceList } from './ui'
 import { getDailyEntries, setReturn, todayIST, addDays, formatDayLong } from './api'
 
 const SLOTS = [
@@ -28,6 +28,7 @@ export default function Returns() {
   const [entries, setEntries] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
+  const [view, setView] = useState('details')
 
   // Staff may change returns for today + yesterday only; admin/owner any date.
   const canEdit = isAdmin || date === today || date === addDays(today, -1)
@@ -133,10 +134,16 @@ export default function Returns() {
         className="w-full rounded-lg border border-gray-300 px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-600"
       />
 
+      <div className="flex justify-end">
+        <ViewToggle view={view} setView={setView} />
+      </div>
+
       {loading ? <Spinner /> : entries.length === 0 ? (
         <EmptyState text={t('No tiffins given in this slot.', 'इस समय कोई टिफिन नहीं दिया।')} />
       ) : shown.length === 0 ? (
         <EmptyState text={t('No match in this list.', 'इस सूची में कोई मेल नहीं।')} />
+      ) : view === 'glance' ? (
+        <GlanceList names={shown.map(nameOf)} />
       ) : (
         <div className="space-y-2">
           {shown.map((e, i) => {

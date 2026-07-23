@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useLang } from '../context/LanguageContext'
 import { useAuth } from './AuthContext'
-import { Modal, ConfirmDialog, Spinner, EmptyState } from './ui'
+import { Modal, ConfirmDialog, Spinner, EmptyState, ViewToggle, GlanceList } from './ui'
 import { CustomerStatement } from './Statement'
 import {
   listCustomers, getTiffinTypes, getCustomerBilling, getCustomerRates,
@@ -19,6 +19,7 @@ export default function Customers() {
   const [search, setSearch] = useState('')
   const [sort, setSort] = useState('latest')      // 'latest' | 'az'
   const [showArchived, setShowArchived] = useState(false)
+  const [view, setView] = useState('details')     // 'details' | 'glance'
   const [editing, setEditing] = useState(null)     // customer obj, {} for new, or null
   const [confirmArchive, setConfirmArchive] = useState(null)
   const [viewing, setViewing] = useState(null)     // customer whose statement is open
@@ -77,18 +78,21 @@ export default function Customers() {
             className="w-full rounded-lg border border-gray-300 px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-saffron"
           />
 
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-gray-400">{t('Sort', 'क्रम')}:</span>
-            <div className="flex rounded-lg overflow-hidden border border-gray-300">
-              <button onClick={() => setSort('az')}
-                      className={`px-3 py-1.5 text-xs font-medium ${sort === 'az' ? 'bg-saffron text-white' : 'bg-white text-gray-600'}`}>
-                {t('A–Z', 'नाम')}
-              </button>
-              <button onClick={() => setSort('latest')}
-                      className={`px-3 py-1.5 text-xs font-medium ${sort === 'latest' ? 'bg-saffron text-white' : 'bg-white text-gray-600'}`}>
-                {t('Latest', 'नए')}
-              </button>
+          <div className="flex items-center gap-2 justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-400">{t('Sort', 'क्रम')}:</span>
+              <div className="flex rounded-lg overflow-hidden border border-gray-300">
+                <button onClick={() => setSort('az')}
+                        className={`px-3 py-1.5 text-xs font-medium ${sort === 'az' ? 'bg-saffron text-white' : 'bg-white text-gray-600'}`}>
+                  {t('A–Z', 'नाम')}
+                </button>
+                <button onClick={() => setSort('latest')}
+                        className={`px-3 py-1.5 text-xs font-medium ${sort === 'latest' ? 'bg-saffron text-white' : 'bg-white text-gray-600'}`}>
+                  {t('Latest', 'नए')}
+                </button>
+              </div>
             </div>
+            <ViewToggle view={view} setView={setView} />
           </div>
 
           {isAdmin && (
@@ -101,6 +105,8 @@ export default function Customers() {
 
           {loading ? <Spinner /> : filtered.length === 0 ? (
             <EmptyState text={t('No customers yet.', 'अभी कोई ग्राहक नहीं।')} />
+          ) : view === 'glance' ? (
+            <GlanceList names={sorted.map(c => c.name)} />
           ) : (
             <div className="space-y-2">
               {sorted.map((c, i) => (

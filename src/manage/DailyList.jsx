@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useLang } from '../context/LanguageContext'
 import { useAuth } from './AuthContext'
-import { Modal, ConfirmDialog, Spinner, EmptyState, UndoToast } from './ui'
+import { Modal, ConfirmDialog, Spinner, EmptyState, UndoToast, ViewToggle, GlanceList } from './ui'
 import {
   getDailyEntries, getTiffinTypes, listCustomers, addEntry, addGuestEntry,
   getRecentGuestLabels, updateEntry, softRemoveEntry, restoreEntry, copyDailyList,
@@ -44,6 +44,7 @@ export default function DailyList() {
   const [guestLabels, setGuestLabels] = useState([])
   const [walkinFilter, setWalkinFilter] = useState('all')   // 'all' | 'walkin'
   const [typeFilter, setTypeFilter] = useState(null)        // tiffin_type_id / 'none' / null
+  const [view, setView] = useState('details')               // 'details' | 'glance'
 
   const canEdit = isAdmin || date === today
 
@@ -277,11 +278,17 @@ export default function DailyList() {
         </div>
       )}
 
+      <div className="flex justify-end">
+        <ViewToggle view={view} setView={setView} />
+      </div>
+
       {/* Entries (sorted A–Z, filtered by search) */}
       {loading ? <Spinner /> : entries.length === 0 ? (
         <EmptyState text={t('No customers in this list yet.', 'इस सूची में अभी कोई ग्राहक नहीं।')} />
       ) : shownEntries.length === 0 ? (
         <EmptyState text={t('No match in this list.', 'इस सूची में कोई मेल नहीं।')} />
+      ) : view === 'glance' ? (
+        <GlanceList names={shownEntries.map(nameOf)} />
       ) : (
         <>
           <div className="space-y-2">
