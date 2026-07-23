@@ -76,14 +76,16 @@ export function ViewToggle({ view, setView }) {
 }
 
 // Dense, numbered, name-only list — for seeing the whole list at a glance.
-export function GlanceList({ names }) {
-  if (!names || names.length === 0) return null
+// items: [{ name, qty }] — shows "×N" right after the name when qty > 1.
+export function GlanceList({ items }) {
+  if (!items || items.length === 0) return null
   return (
     <div className="bg-white rounded-xl shadow-card divide-y divide-gray-100">
-      {names.map((name, i) => (
+      {items.map((it, i) => (
         <div key={i} className="flex items-baseline gap-2 px-3 py-1.5">
           <span className="text-xs text-gray-400 w-6 text-right shrink-0">{i + 1}</span>
-          <span className="text-sm text-gray-800 truncate">{name}</span>
+          <span className="text-sm text-gray-800 truncate min-w-0">{it.name}</span>
+          {it.qty > 1 && <span className="text-xs font-semibold text-saffron-dark shrink-0">×{it.qty}</span>}
         </div>
       ))}
     </div>

@@ -143,7 +143,7 @@ export default function Returns() {
       ) : shown.length === 0 ? (
         <EmptyState text={t('No match in this list.', 'इस सूची में कोई मेल नहीं।')} />
       ) : view === 'glance' ? (
-        <GlanceList names={shown.map(nameOf)} />
+        <GlanceList items={shown.map(e => ({ name: nameOf(e), qty: e.quantity || 1 }))} />
       ) : (
         <div className="space-y-2">
           {shown.map((e, i) => {

@@ -288,7 +288,7 @@ export default function DailyList() {
       ) : shownEntries.length === 0 ? (
         <EmptyState text={t('No match in this list.', 'इस सूची में कोई मेल नहीं।')} />
       ) : view === 'glance' ? (
-        <GlanceList names={shownEntries.map(nameOf)} />
+        <GlanceList items={shownEntries.map(e => ({ name: nameOf(e), qty: e.quantity || 1 }))} />
       ) : (
         <>
           <div className="space-y-2">
