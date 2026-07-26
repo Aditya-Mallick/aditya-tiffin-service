@@ -175,7 +175,7 @@ export async function getDailyEntries(dateStr, slot) {
   return supabase
     .from('delivery_entries')
     .select('id, quantity, returned_qty, notes, tiffin_type_id, portion, customer_id, guest_label, ' +
-            'customers ( id, name, mobile ), tiffin_types ( id, name_en, name_hi )')
+            'sort_order, created_at, customers ( id, name, mobile ), tiffin_types ( id, name_en, name_hi )')
     .eq('entry_date', dateStr)
     .eq('slot', slot)
     .is('deleted_at', null)
@@ -215,6 +215,11 @@ export async function getRecentGuestLabels() {
 
 export async function updateEntry(id, fields) {
   return supabase.from('delivery_entries').update(fields).eq('id', id)
+}
+
+// Persist a manual order for the daily list (ids in the desired order).
+export async function setEntryOrder(ids) {
+  return supabase.rpc('set_entry_order', { p_ids: ids })
 }
 
 // Set how many of an entry's boxes have been returned (RPC enforces who/when).

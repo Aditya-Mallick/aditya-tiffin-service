@@ -1,11 +1,12 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
+import { GripVertical } from 'lucide-react'
 import { useLang } from '../context/LanguageContext'
 import { useAuth } from './AuthContext'
 import { Modal, ConfirmDialog, Spinner, EmptyState, UndoToast, ViewToggle, GlanceList } from './ui'
 import {
   getDailyEntries, getTiffinTypes, listCustomers, addEntry, addGuestEntry,
   getRecentGuestLabels, updateEntry, softRemoveEntry, restoreEntry, copyDailyList,
-  todayIST, addDays, formatDayLong,
+  setEntryOrder, todayIST, addDays, formatDayLong,
 } from './api'
 
 const SLOTS = [
@@ -45,6 +46,10 @@ export default function DailyList() {
   const [walkinFilter, setWalkinFilter] = useState('all')   // 'all' | 'walkin'
   const [typeFilter, setTypeFilter] = useState(null)        // tiffin_type_id / 'none' / null
   const [view, setView] = useState('details')               // 'details' | 'glance'
+  const [sort, setSort] = useState('latest')                // 'latest' | 'az' | 'custom'
+  const [draggingId, setDraggingId] = useState(null)
+  const rowEls = useRef({})
+  const dragging = useRef(null)
 
   const canEdit = isAdmin || date === today
 
@@ -98,8 +103,17 @@ export default function DailyList() {
   const typeCounts = Object.values(typeCountMap).sort((a, b) => b.qty - a.qty)
   const activeType = typeCounts.some(tc => tc.key === typeFilter) ? typeFilter : null
 
-  // Sort A–Z, then apply the type + walk-in filters and the in-list search.
-  const sortedEntries = [...entries].sort((a, b) => nameOf(a).localeCompare(nameOf(b)))
+  // Order: newest added first, A–Z, or the manual drag order.
+  const sortedEntries = [...entries].sort((a, b) => {
+    if (sort === 'az') return nameOf(a).localeCompare(nameOf(b))
+    if (sort === 'custom') {
+      const ao = a.sort_order ?? Number.MAX_SAFE_INTEGER
+      const bo = b.sort_order ?? Number.MAX_SAFE_INTEGER
+      if (ao !== bo) return ao - bo
+      return (a.created_at || '').localeCompare(b.created_at || '')
+    }
+    return (b.created_at || '').localeCompare(a.created_at || '')   // latest
+  })
   const eq = entrySearch.trim().toLowerCase()
   const shownEntries = sortedEntries.filter(e => {
     if (walkinFilter === 'walkin' && e.customer_id) return false
@@ -156,6 +170,54 @@ export default function DailyList() {
     setEntries(es => es.map(e => e.id === entryId ? { ...e, quantity: q } : e))
     await updateEntry(entryId, { quantity: q })
   }
+  // ---- Drag to reorder (press the grip handle and drag) --------------------
+  function dragStart(e, id) {
+    if (!canEdit) return
+    e.preventDefault()
+    e.currentTarget.setPointerCapture?.(e.pointerId)
+    dragging.current = { id }
+    setDraggingId(id)
+    // Switch to manual order, seeded from what's on screen right now.
+    const ids = shownEntries.map(x => x.id)
+    setEntries(es => es.map(x => {
+      const i = ids.indexOf(x.id)
+      return i === -1 ? x : { ...x, sort_order: i + 1 }
+    }))
+    setSort('custom')
+  }
+
+  function dragMove(e) {
+    if (!dragging.current) return
+    const y = e.clientY
+    const ids = shownEntries.map(x => x.id)
+    let target = -1
+    ids.forEach((id, i) => {
+      const el = rowEls.current[id]
+      if (!el) return
+      const r = el.getBoundingClientRect()
+      if (y >= r.top && y <= r.bottom) target = i
+    })
+    const from = ids.indexOf(dragging.current.id)
+    if (target < 0 || from < 0 || target === from) return
+    const next = [...ids]
+    next.splice(target, 0, next.splice(from, 1)[0])
+    setEntries(es => es.map(x => {
+      const i = next.indexOf(x.id)
+      return i === -1 ? x : { ...x, sort_order: i + 1 }
+    }))
+  }
+
+  async function dragEnd() {
+    if (!dragging.current) return
+    dragging.current = null
+    setDraggingId(null)
+    const ids = [...entries]
+      .filter(x => x.sort_order != null)
+      .sort((a, b) => a.sort_order - b.sort_order)
+      .map(x => x.id)
+    if (ids.length) await setEntryOrder(ids)
+  }
+
   async function handleRemove(entry) {
     await softRemoveEntry(entry.id)
     setEntries(es => es.filter(e => e.id !== entry.id))
@@ -278,7 +340,22 @@ export default function DailyList() {
         </div>
       )}
 
-      <div className="flex justify-end">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-gray-400">{t('Sort', 'क्रम')}:</span>
+          <div className="flex rounded-lg overflow-hidden border border-gray-300">
+            {[
+              { k: 'latest', en: 'Latest', hi: 'नए' },
+              { k: 'az', en: 'A–Z', hi: 'नाम' },
+              { k: 'custom', en: 'Manual', hi: 'मैनुअल' },
+            ].map(o => (
+              <button key={o.k} onClick={() => setSort(o.k)}
+                      className={`px-2.5 py-1.5 text-xs font-medium ${sort === o.k ? 'bg-saffron text-white' : 'bg-white text-gray-600'}`}>
+                {t(o.en, o.hi)}
+              </button>
+            ))}
+          </div>
+        </div>
         <ViewToggle view={view} setView={setView} />
       </div>
 
@@ -293,9 +370,24 @@ export default function DailyList() {
         <>
           <div className="space-y-2">
             {shownEntries.map((e, i) => (
-              <div key={e.id} className="bg-white rounded-xl shadow-card p-3">
+              <div key={e.id}
+                   ref={(el) => { if (el) rowEls.current[e.id] = el; else delete rowEls.current[e.id] }}
+                   className={`bg-white rounded-xl shadow-card p-3 ${draggingId === e.id ? 'ring-2 ring-saffron opacity-90' : ''}`}>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 min-w-0">
+                    {canEdit && (
+                      <button
+                        onPointerDown={(ev) => dragStart(ev, e.id)}
+                        onPointerMove={dragMove}
+                        onPointerUp={dragEnd}
+                        onPointerCancel={dragEnd}
+                        aria-label={t('Drag to reorder', 'क्रम बदलने के लिए खींचें')}
+                        className="shrink-0 px-1 text-gray-300 cursor-grab active:cursor-grabbing select-none"
+                        style={{ touchAction: 'none' }}
+                      >
+                        <GripVertical size={18} />
+                      </button>
+                    )}
                     <span className="text-base font-semibold text-gray-400 w-7 shrink-0 text-center">{i + 1}</span>
                     <div className="min-w-0">
                       <p className="text-sm font-semibold text-gray-800 truncate">
