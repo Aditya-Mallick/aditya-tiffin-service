@@ -6,7 +6,8 @@ import { BillEditor } from './Billing'
 import { AttendanceGrid } from './AttendanceGrid'
 import {
   getEntriesForCustomerRange, getCustomerRates, getTiffinTypes, getCustomerBilling,
-  listPayments, monthBounds, currentMonthIST, addMonths, monthLabel, computeCharges, formatINR, balanceParts,
+  listPayments, monthBounds, currentMonthIST, addMonths, monthLabel, computeCharges, formatINR,
+  balanceParts, formatDate, softRemovePayment,
 } from './api'
 
 // A signed balance as clear words (no minus): "₹120 due" / "₹80 advance" / "Settled".
@@ -34,6 +35,7 @@ export function CustomerStatement({ customer, onBack, onEdit, isAdmin }) {
   const [rawEntries, setRawEntries] = useState([])
   const [types, setTypes] = useState([])
   const [showRecord, setShowRecord] = useState(false)
+  const [editPayment, setEditPayment] = useState(null)
   const [showBill, setShowBill] = useState(false)
   const [tick, setTick] = useState(0)
 
@@ -211,10 +213,16 @@ export function CustomerStatement({ customer, onBack, onEdit, isAdmin }) {
             ) : (
               <div className="space-y-1">
                 {monthPayments.map(p => (
-                  <div key={p.id} className="flex justify-between text-sm">
-                    <span className="text-gray-500">{p.paid_on}{p.method ? ` · ${p.method}` : ''}</span>
-                    <span className="font-medium text-tgreen-dark">{formatINR(p.amount)}</span>
-                  </div>
+                  <button key={p.id} onClick={() => setEditPayment(p)}
+                          className="w-full flex justify-between items-center text-sm py-1">
+                    <span className="text-gray-500 text-left">
+                      {formatDate(p.paid_on, lang)}{p.method ? ` · ${p.method}` : ''}
+                      {p.note ? ` · ${p.note}` : ''}
+                    </span>
+                    <span className="font-medium text-tgreen-dark shrink-0 ml-2">
+                      {formatINR(p.amount)} <span className="text-gray-300">›</span>
+                    </span>
+                  </button>
                 ))}
               </div>
             )}
@@ -231,6 +239,18 @@ export function CustomerStatement({ customer, onBack, onEdit, isAdmin }) {
         <RecordModal lockedCustomer={customer} customers={[customer]}
                      onClose={() => setShowRecord(false)}
                      onSaved={() => { setShowRecord(false); setTick(x => x + 1) }} />
+      )}
+
+      {editPayment && (
+        <RecordModal lockedCustomer={customer} customers={[customer]} payment={editPayment}
+                     onClose={() => setEditPayment(null)}
+                     onSaved={() => { setEditPayment(null); setTick(x => x + 1) }}
+                     onDelete={async () => {
+                       const p = editPayment
+                       setEditPayment(null)
+                       await softRemovePayment(p.id)
+                       setTick(x => x + 1)
+                     }} />
       )}
 
       {showBill && (

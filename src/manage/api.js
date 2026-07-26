@@ -266,6 +266,15 @@ export async function addPayment(p) {
   }).select('id').single()
 }
 
+export async function updatePayment(id, p) {
+  return supabase.from('payments').update({
+    amount: Number(p.amount),
+    paid_on: p.paid_on,
+    method: p.method || null,
+    note: p.note || null,
+  }).eq('id', id)
+}
+
 export async function softRemovePayment(id) {
   return supabase.from('payments')
     .update({ deleted_at: new Date().toISOString() }).eq('id', id)
@@ -306,6 +315,17 @@ export function monthBounds(ym) {
 export function addMonths(ym, delta) {
   const [y, m] = ym.split('-').map(Number)
   return new Date(Date.UTC(y, m - 1 + delta, 1)).toISOString().slice(0, 7)
+}
+
+// e.g. '2026-07-22' -> '22 July 2026'. Used everywhere a date is shown.
+export function formatDate(dateStr, lang = 'en') {
+  if (!dateStr) return ''
+  const [y, m, d] = String(dateStr).split('-').map(Number)
+  if (!y || !m || !d) return String(dateStr)
+  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString(
+    lang === 'hi' ? 'hi-IN' : 'en-GB',
+    { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }
+  )
 }
 
 // e.g. '2026-07-16' -> '16 July 2026 (Thursday)'.

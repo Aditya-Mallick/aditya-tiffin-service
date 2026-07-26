@@ -2,10 +2,10 @@ import { useEffect, useState, useCallback } from 'react'
 import { Trash2 } from 'lucide-react'
 import { useLang } from '../context/LanguageContext'
 import { useAuth } from './AuthContext'
-import { Modal, Spinner, EmptyState, UndoToast } from './ui'
+import { Modal, ConfirmDialog, Spinner, EmptyState, UndoToast } from './ui'
 import {
-  listPayments, addPayment, softRemovePayment, restorePayment,
-  listCustomers, getCustomerBilling, todayIST, formatINR, balanceParts,
+  listPayments, addPayment, updatePayment, softRemovePayment, restorePayment,
+  listCustomers, todayIST, formatINR, formatDate,
 } from './api'
 
 const METHODS = [
@@ -16,41 +16,29 @@ const METHODS = [
 ]
 
 export default function Payments() {
-  const { t } = useLang()
+  const { t, lang } = useLang()
   const { canSeeMoney } = useAuth()
 
   const [payments, setPayments] = useState([])
   const [customers, setCustomers] = useState([])
   const [loading, setLoading] = useState(true)
-  const [filterCustomer, setFilterCustomer] = useState('')   // customer_id or ''
-  const [opening, setOpening] = useState(null)               // opening balance of filtered customer
+  const [search, setSearch] = useState('')
   const [recording, setRecording] = useState(false)
+  const [editing, setEditing] = useState(null)
   const [undo, setUndo] = useState(null)
 
   const load = useCallback(async () => {
     setLoading(true)
     const [{ data: ps }, { data: cs }] = await Promise.all([
-      listPayments({ customerId: filterCustomer || undefined }),
+      listPayments(),
       listCustomers({ includeArchived: true }),
     ])
     setPayments(ps || [])
     setCustomers(cs || [])
     setLoading(false)
-  }, [filterCustomer])
+  }, [])
 
   useEffect(() => { load() }, [load])
-
-  // Opening balance for the filtered customer.
-  useEffect(() => {
-    let on = true
-    async function loadOpening() {
-      if (!filterCustomer) { setOpening(null); return }
-      const { data } = await getCustomerBilling(filterCustomer)
-      if (on) setOpening(data?.opening_balance ?? 0)
-    }
-    loadOpening()
-    return () => { on = false }
-  }, [filterCustomer])
 
   if (!canSeeMoney) {
     return (
@@ -59,7 +47,16 @@ export default function Payments() {
     )
   }
 
-  const totalPaid = payments.reduce((s, p) => s + Number(p.amount || 0), 0)
+  // Search by customer name, mobile, amount or note.
+  const q = search.trim().toLowerCase()
+  const shown = q
+    ? payments.filter(p =>
+        (p.customers?.name || '').toLowerCase().includes(q) ||
+        (p.customers?.mobile || '').includes(q) ||
+        String(p.amount || '').includes(q) ||
+        (p.note || '').toLowerCase().includes(q))
+    : payments
+  const totalPaid = shown.reduce((s, p) => s + Number(p.amount || 0), 0)
 
   async function handleRemove(p) {
     await softRemovePayment(p.id)
@@ -83,45 +80,37 @@ export default function Payments() {
         </button>
       </div>
 
-      <select value={filterCustomer} onChange={(e) => setFilterCustomer(e.target.value)}
-              className="w-full rounded-lg border border-gray-300 px-4 py-2.5 bg-white text-sm">
-        <option value="">{t('All customers', 'सभी ग्राहक')}</option>
-        {customers.map(c => <option key={c.id} value={c.id}>{c.name} · {c.mobile}</option>)}
-      </select>
+      <input
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        placeholder={t('Search customer, amount or note…', 'ग्राहक, राशि या नोट खोजें…')}
+        className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-saffron"
+      />
 
       {/* Totals */}
-      <div className="bg-white rounded-xl shadow-card p-4 flex items-center justify-around text-center">
-        <div>
-          <p className="text-xs text-gray-500">{t('Total received', 'कुल प्राप्त')}</p>
-          <p className="text-lg font-bold text-tgreen-dark">{formatINR(totalPaid)}</p>
-        </div>
-        {filterCustomer && opening != null && (() => {
-          const bp = balanceParts(opening)
-          return (
-            <div>
-              <p className="text-xs text-gray-500">{t('Opening balance', 'शुरुआती बकाया')}</p>
-              <p className={`text-lg font-bold ${bp.kind === 'due' ? 'text-red-600' : 'text-tgreen-dark'}`}>
-                {bp.kind === 'settled' ? t('Settled', 'पूरा')
-                  : formatINR(bp.amount) + ' ' + (bp.kind === 'advance' ? t('advance', 'अग्रिम') : t('due', 'बकाया'))}
-              </p>
-            </div>
-          )
-        })()}
+      <div className="bg-white rounded-xl shadow-card p-3 text-center">
+        <p className="text-xs text-gray-500">
+          {q ? t('Total shown', 'दिखाया गया कुल') : t('Total received', 'कुल प्राप्त')}
+          <span className="text-gray-400"> · {shown.length}</span>
+        </p>
+        <p className="text-lg font-bold text-tgreen-dark">{formatINR(totalPaid)}</p>
       </div>
       </div>
 
       {loading ? <Spinner /> : payments.length === 0 ? (
         <EmptyState text={t('No payments recorded yet.', 'अभी कोई भुगतान दर्ज नहीं।')} />
+      ) : shown.length === 0 ? (
+        <EmptyState text={t('No matching payments.', 'कोई मेल खाता भुगतान नहीं।')} />
       ) : (
         <div className="space-y-2">
-          {payments.map(p => (
+          {shown.map(p => (
             <div key={p.id} className="bg-white rounded-xl shadow-card p-3 flex items-center justify-between">
-              <div className="min-w-0">
+              <button onClick={() => setEditing(p)} className="min-w-0 flex-1 text-left">
                 <p className="text-sm font-semibold text-gray-800 truncate">{p.customers?.name}</p>
                 <p className="text-xs text-gray-400">
-                  {p.paid_on}{p.method ? ` · ${p.method}` : ''}{p.note ? ` · ${p.note}` : ''}
+                  {formatDate(p.paid_on, lang)}{p.method ? ` · ${p.method}` : ''}{p.note ? ` · ${p.note}` : ''}
                 </p>
-              </div>
+              </button>
               <div className="flex items-center gap-2 shrink-0">
                 <span className="font-bold text-tgreen-dark">{formatINR(p.amount)}</span>
                 <button onClick={() => handleRemove(p)} aria-label={t('Remove', 'हटाएं')}
@@ -139,21 +128,31 @@ export default function Payments() {
                      onSaved={() => { setRecording(false); load() }} />
       )}
 
+      {editing && (
+        <RecordModal customers={customers} payment={editing}
+                     lockedCustomer={editing.customers ? { id: editing.customer_id, ...editing.customers } : null}
+                     onClose={() => setEditing(null)}
+                     onSaved={() => { setEditing(null); load() }}
+                     onDelete={() => { const p = editing; setEditing(null); handleRemove(p) }} />
+      )}
+
       <UndoToast message={undo?.message} onUndo={doUndo} onDismiss={() => setUndo(null)} />
     </div>
   )
 }
 
-export function RecordModal({ customers, onClose, onSaved, lockedCustomer }) {
+export function RecordModal({ customers, onClose, onSaved, lockedCustomer, payment, onDelete }) {
   const { t } = useLang()
-  const [customerId, setCustomerId] = useState(lockedCustomer?.id || '')
+  const isEdit = Boolean(payment)
+  const [customerId, setCustomerId] = useState(payment?.customer_id || lockedCustomer?.id || '')
   const [search, setSearch] = useState('')
-  const [amount, setAmount] = useState('')
-  const [paidOn, setPaidOn] = useState(todayIST())
-  const [method, setMethod] = useState('Cash')
-  const [note, setNote] = useState('')
+  const [amount, setAmount] = useState(payment ? String(payment.amount ?? '') : '')
+  const [paidOn, setPaidOn] = useState(payment?.paid_on || todayIST())
+  const [method, setMethod] = useState(payment?.method || 'Cash')
+  const [note, setNote] = useState(payment?.note || '')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [confirmDel, setConfirmDel] = useState(false)
 
   const q = search.trim().toLowerCase()
   const matches = customers.filter(c =>
@@ -165,14 +164,17 @@ export function RecordModal({ customers, onClose, onSaved, lockedCustomer }) {
     if (!customerId) { setError(t('Pick a customer.', 'ग्राहक चुनें।')); return }
     if (!(Number(amount) > 0)) { setError(t('Enter an amount.', 'राशि डालें।')); return }
     setBusy(true)
-    const { error } = await addPayment({ customer_id: customerId, amount, paid_on: paidOn, method, note })
+    const { error } = isEdit
+      ? await updatePayment(payment.id, { amount, paid_on: paidOn, method, note })
+      : await addPayment({ customer_id: customerId, amount, paid_on: paidOn, method, note })
     setBusy(false)
     if (error) { setError(error.message); return }
     onSaved()
   }
 
   return (
-    <Modal open onClose={onClose} title={t('Record payment', 'भुगतान दर्ज करें')}>
+    <Modal open onClose={onClose}
+           title={isEdit ? t('Edit payment', 'भुगतान बदलें') : t('Record payment', 'भुगतान दर्ज करें')}>
       <div className="space-y-4">
         {/* Customer picker */}
         <div>
@@ -250,6 +252,22 @@ export function RecordModal({ customers, onClose, onSaved, lockedCustomer }) {
             {busy ? t('Saving…', 'सेव हो रहा है…') : t('Save', 'सेव करें')}
           </button>
         </div>
+
+        {isEdit && onDelete && (
+          <button onClick={() => setConfirmDel(true)} className="w-full text-red-600 text-sm font-medium">
+            {t('Delete this payment', 'यह भुगतान हटाएं')}
+          </button>
+        )}
+
+        <ConfirmDialog
+          open={confirmDel}
+          title={t('Delete payment?', 'भुगतान हटाएं?')}
+          message={t(`Delete this ${formatINR(payment?.amount)} payment? You can undo right after.`,
+                     `यह ${formatINR(payment?.amount)} का भुगतान हटाएं? तुरंत वापस ला सकते हैं।`)}
+          confirmLabel={t('Delete', 'हटाएं')} danger
+          onCancel={() => setConfirmDel(false)}
+          onConfirm={() => { setConfirmDel(false); onDelete() }}
+        />
       </div>
     </Modal>
   )
