@@ -66,9 +66,9 @@ export function UndoToast({ message, onUndo, onDismiss, duration = 6000 }) {
 // Toggle between the detailed cards and a tight name-only "glance" list.
 export function ViewToggle({ view, setView }) {
   const { t } = useLang()
-  const cls = (on) => `px-3 py-1.5 text-xs font-medium ${on ? 'bg-gray-800 text-white' : 'bg-white text-gray-600'}`
+  const cls = (on) => `px-3 py-1.5 text-xs font-medium whitespace-nowrap ${on ? 'bg-gray-800 text-white' : 'bg-white text-gray-600'}`
   return (
-    <div className="flex rounded-lg overflow-hidden border border-gray-300">
+    <div className="flex rounded-lg overflow-hidden border border-gray-300 shrink-0">
       <button onClick={() => setView('details')} className={cls(view === 'details')}>{t('Details', 'विवरण')}</button>
       <button onClick={() => setView('glance')} className={cls(view === 'glance')}>{t('Names', 'नाम')}</button>
     </div>

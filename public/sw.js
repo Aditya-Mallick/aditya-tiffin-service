@@ -7,7 +7,7 @@
  *    picked up immediately but the app still opens if the network hiccups.
  *  - Build assets (/assets/*) are content-hashed by Vite, so cache-first is safe.
  */
-const VERSION = 'v1'
+const VERSION = 'v2'
 const SHELL = `shell-${VERSION}`
 const ASSETS = `assets-${VERSION}`
 

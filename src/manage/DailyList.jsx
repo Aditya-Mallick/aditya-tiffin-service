@@ -383,17 +383,17 @@ export default function DailyList() {
         </div>
       )}
 
-      <div className="flex items-center justify-between gap-2">
-        {canEdit ? (
-          <p className="text-xs text-gray-400">
-            {view === 'glance'
-              ? t('Press and hold a name, then drag to move it.',
-                  'नाम को दबाकर रखें, फिर खींचकर हटाएं।')
-              : t('Drag the ⠿ handle to reorder.', 'क्रम बदलने के लिए ⠿ खींचें।')}
-          </p>
-        ) : <span />}
+      <div className="flex justify-end">
         <ViewToggle view={view} setView={setView} />
       </div>
+      {canEdit && (
+        <p className="text-xs text-gray-400 -mt-2">
+          {view === 'glance'
+            ? t('Press and hold a name, then drag to move it.',
+                'नाम को दबाकर रखें, फिर खींचकर हटाएं।')
+            : t('Drag the ⠿ handle to reorder.', 'क्रम बदलने के लिए ⠿ खींचें।')}
+        </p>
+      )}
 
       {/* Entries (sorted A–Z, filtered by search) */}
       {loading ? <Spinner /> : entries.length === 0 ? (
