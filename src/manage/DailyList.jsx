@@ -25,6 +25,10 @@ function defaultSlot() {
 
 function ttName(tt, lang) { return lang === 'hi' && tt?.name_hi ? tt.name_hi : tt?.name_en }
 
+// Module-level so add/removeEventListener always see the same reference.
+// Non-passive listener → stops the page scrolling while a drag is in progress.
+function blockScroll(e) { e.preventDefault() }
+
 export default function DailyList() {
   const { t, lang } = useLang()
   const { isAdmin } = useAuth()
@@ -45,11 +49,17 @@ export default function DailyList() {
   const [guestLabels, setGuestLabels] = useState([])
   const [walkinFilter, setWalkinFilter] = useState('all')   // 'all' | 'walkin'
   const [typeFilter, setTypeFilter] = useState(null)        // tiffin_type_id / 'none' / null
-  const [view, setView] = useState('details')               // 'details' | 'glance'
-  const [sort, setSort] = useState('latest')                // 'latest' | 'az' | 'custom'
+  const [view, setView] = useState('glance')                // 'glance' | 'details'
   const [draggingId, setDraggingId] = useState(null)
   const rowEls = useRef({})
   const dragging = useRef(null)
+  const longPress = useRef(null)
+
+  // Cleanup if the page unmounts mid-drag.
+  useEffect(() => () => {
+    document.removeEventListener('touchmove', blockScroll)
+    if (longPress.current) clearTimeout(longPress.current.timer)
+  }, [])
 
   const canEdit = isAdmin || date === today
 
@@ -103,17 +113,13 @@ export default function DailyList() {
   const typeCounts = Object.values(typeCountMap).sort((a, b) => b.qty - a.qty)
   const activeType = typeCounts.some(tc => tc.key === typeFilter) ? typeFilter : null
 
-  // Order: newest added first, A–Z, or the manual drag order.
-  const sortedEntries = [...entries].sort((a, b) => {
-    if (sort === 'az') return nameOf(a).localeCompare(nameOf(b))
-    if (sort === 'custom') {
-      const ao = a.sort_order ?? Number.MAX_SAFE_INTEGER
-      const bo = b.sort_order ?? Number.MAX_SAFE_INTEGER
-      if (ao !== bo) return ao - bo
-      return (a.created_at || '').localeCompare(b.created_at || '')
-    }
-    return (b.created_at || '').localeCompare(a.created_at || '')   // latest
-  })
+  // Order: anything not yet arranged sits on top, newest first — so a name you
+  // just added appears at the top. Rows you've dragged keep their saved place.
+  const unordered = entries.filter(e => e.sort_order == null)
+    .sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''))
+  const ordered = entries.filter(e => e.sort_order != null)
+    .sort((a, b) => a.sort_order - b.sort_order)
+  const sortedEntries = [...unordered, ...ordered]
   const eq = entrySearch.trim().toLowerCase()
   const shownEntries = sortedEntries.filter(e => {
     if (walkinFilter === 'walkin' && e.customer_id) return false
@@ -170,20 +176,56 @@ export default function DailyList() {
     setEntries(es => es.map(e => e.id === entryId ? { ...e, quantity: q } : e))
     await updateEntry(entryId, { quantity: q })
   }
-  // ---- Drag to reorder (press the grip handle and drag) --------------------
-  function dragStart(e, id) {
-    if (!canEdit) return
-    e.preventDefault()
-    e.currentTarget.setPointerCapture?.(e.pointerId)
+  // ---- Drag to reorder -----------------------------------------------------
+  // Detail view: drag the grip handle. Names view: press-and-hold any row.
+  function beginDrag(id) {
     dragging.current = { id }
     setDraggingId(id)
+    // Stop the page scrolling while a drag is in progress (must be non-passive).
+    document.addEventListener('touchmove', blockScroll, { passive: false })
+    navigator.vibrate?.(30)
     // Switch to manual order, seeded from what's on screen right now.
     const ids = shownEntries.map(x => x.id)
     setEntries(es => es.map(x => {
       const i = ids.indexOf(x.id)
       return i === -1 ? x : { ...x, sort_order: i + 1 }
     }))
-    setSort('custom')
+  }
+
+  function dragStart(e, id) {
+    if (!canEdit) return
+    e.preventDefault()
+    e.currentTarget.setPointerCapture?.(e.pointerId)
+    beginDrag(id)
+  }
+
+  // Press-and-hold on a whole row (Names view). A small move before the hold
+  // completes means the user is scrolling, so we cancel.
+  function rowDragStart(e, id) {
+    if (!canEdit) return
+    e.currentTarget.setPointerCapture?.(e.pointerId)
+    const { clientX: x, clientY: y } = e
+    longPress.current = {
+      id, x, y,
+      timer: setTimeout(() => { if (longPress.current) beginDrag(id) }, 300),
+    }
+  }
+
+  function rowDragMove(e) {
+    const lp = longPress.current
+    if (lp && !dragging.current) {
+      if (Math.abs(e.clientY - lp.y) > 8 || Math.abs(e.clientX - lp.x) > 8) {
+        clearTimeout(lp.timer)
+        longPress.current = null
+      }
+      return
+    }
+    dragMove(e)
+  }
+
+  function rowDragEnd() {
+    if (longPress.current) { clearTimeout(longPress.current.timer); longPress.current = null }
+    dragEnd()
   }
 
   function dragMove(e) {
@@ -211,6 +253,7 @@ export default function DailyList() {
     if (!dragging.current) return
     dragging.current = null
     setDraggingId(null)
+    document.removeEventListener('touchmove', blockScroll)
     const ids = [...entries]
       .filter(x => x.sort_order != null)
       .sort((a, b) => a.sort_order - b.sort_order)
@@ -341,30 +384,16 @@ export default function DailyList() {
       )}
 
       <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-gray-400">{t('Sort', 'क्रम')}:</span>
-          <div className="flex rounded-lg overflow-hidden border border-gray-300">
-            {[
-              { k: 'latest', en: 'Latest', hi: 'नए' },
-              { k: 'az', en: 'A–Z', hi: 'नाम' },
-              { k: 'custom', en: 'My order', hi: 'मेरा क्रम' },
-            ].map(o => (
-              <button key={o.k} onClick={() => setSort(o.k)}
-                      className={`px-2.5 py-1.5 text-xs font-medium ${sort === o.k ? 'bg-saffron text-white' : 'bg-white text-gray-600'}`}>
-                {t(o.en, o.hi)}
-              </button>
-            ))}
-          </div>
-        </div>
+        {canEdit ? (
+          <p className="text-xs text-gray-400">
+            {view === 'glance'
+              ? t('Press and hold a name, then drag to move it.',
+                  'नाम को दबाकर रखें, फिर खींचकर हटाएं।')
+              : t('Drag the ⠿ handle to reorder.', 'क्रम बदलने के लिए ⠿ खींचें।')}
+          </p>
+        ) : <span />}
         <ViewToggle view={view} setView={setView} />
       </div>
-
-      {sort === 'custom' && canEdit && (
-        <p className="text-xs text-gray-400 -mt-2">
-          {t('Drag the ⠿ handle to arrange this list in your own order.',
-             '⠿ पकड़कर खींचें और अपनी पसंद के क्रम में लगाएं।')}
-        </p>
-      )}
 
       {/* Entries (sorted A–Z, filtered by search) */}
       {loading ? <Spinner /> : entries.length === 0 ? (
@@ -378,7 +407,7 @@ export default function DailyList() {
             enabled: canEdit,
             draggingId,
             rowRef: (id, el) => { if (el) rowEls.current[id] = el; else delete rowEls.current[id] },
-            onDown: dragStart, onMove: dragMove, onUp: dragEnd,
+            onDown: rowDragStart, onMove: rowDragMove, onUp: rowDragEnd,
           }}
         />
       ) : (

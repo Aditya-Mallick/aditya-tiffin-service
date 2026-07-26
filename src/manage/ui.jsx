@@ -1,5 +1,4 @@
 import { useEffect } from 'react'
-import { GripVertical } from 'lucide-react'
 import { useLang } from '../context/LanguageContext'
 
 // Generic centered modal.
@@ -87,21 +86,14 @@ export function GlanceList({ items, drag }) {
         <div
           key={it.id ?? i}
           ref={drag?.rowRef ? (el) => drag.rowRef(it.id, el) : undefined}
-          className={`flex items-center gap-1 px-2 py-1.5 ${drag?.draggingId === it.id ? 'ring-2 ring-saffron rounded-lg' : ''}`}
+          onPointerDown={drag?.enabled ? (e) => drag.onDown(e, it.id) : undefined}
+          onPointerMove={drag?.enabled ? drag.onMove : undefined}
+          onPointerUp={drag?.enabled ? drag.onUp : undefined}
+          onPointerCancel={drag?.enabled ? drag.onUp : undefined}
+          className={`flex items-center gap-2 px-3 py-2 select-none ${
+            drag?.enabled ? 'cursor-grab active:cursor-grabbing' : ''} ${
+            drag?.draggingId === it.id ? 'bg-saffron/10 ring-2 ring-saffron rounded-lg' : ''}`}
         >
-          {drag?.enabled && (
-            <button
-              onPointerDown={(e) => drag.onDown(e, it.id)}
-              onPointerMove={drag.onMove}
-              onPointerUp={drag.onUp}
-              onPointerCancel={drag.onUp}
-              aria-label="Drag to reorder"
-              className="shrink-0 px-0.5 text-gray-300 cursor-grab active:cursor-grabbing select-none"
-              style={{ touchAction: 'none' }}
-            >
-              <GripVertical size={16} />
-            </button>
-          )}
           <span className="text-xs text-gray-400 w-6 text-right shrink-0">{i + 1}</span>
           <span className="text-sm text-gray-800 truncate min-w-0">{it.name}</span>
           {it.qty > 1 && <span className="text-xs font-semibold text-saffron-dark shrink-0">×{it.qty}</span>}
