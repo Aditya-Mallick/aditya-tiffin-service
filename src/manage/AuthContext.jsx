@@ -24,19 +24,24 @@ export function AuthProvider({ children }) {
     if (!isSupabaseConfigured) { setLoading(false); return }
     let active = true
 
-    supabase.auth.getSession().then(async ({ data }) => {
-      if (!active) return
-      setSession(data.session)
-      await loadProfile(data.session?.user?.id)
-      setLoading(false)
-    })
+    // Never let a stalled network call leave the app stuck on "Loading…".
+    const failSafe = setTimeout(() => { if (active) setLoading(false) }, 8000)
+
+    supabase.auth.getSession()
+      .then(async ({ data }) => {
+        if (!active) return
+        setSession(data.session)
+        await loadProfile(data.session?.user?.id)
+      })
+      .catch(() => {})
+      .finally(() => { if (active) { clearTimeout(failSafe); setLoading(false) } })
 
     const { data: sub } = supabase.auth.onAuthStateChange(async (_event, newSession) => {
       setSession(newSession)
       await loadProfile(newSession?.user?.id)
     })
 
-    return () => { active = false; sub.subscription.unsubscribe() }
+    return () => { active = false; clearTimeout(failSafe); sub.subscription.unsubscribe() }
   }, [loadProfile])
 
   // Sign in with mobile number + PIN (no SMS — mapped to an internal email).

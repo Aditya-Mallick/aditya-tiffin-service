@@ -3,6 +3,7 @@ import { Trash2 } from 'lucide-react'
 import { useLang } from '../context/LanguageContext'
 import { useAuth } from './AuthContext'
 import { Modal, ConfirmDialog, Spinner, EmptyState, UndoToast } from './ui'
+import { useCachedLoad } from './useCachedLoad'
 import {
   listPayments, addPayment, updatePayment, softRemovePayment, restorePayment,
   listCustomers, todayIST, formatINR, formatDate,
@@ -19,26 +20,24 @@ export default function Payments() {
   const { t, lang } = useLang()
   const { canSeeMoney } = useAuth()
 
-  const [payments, setPayments] = useState([])
-  const [customers, setCustomers] = useState([])
-  const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [recording, setRecording] = useState(false)
   const [editing, setEditing] = useState(null)
   const [undo, setUndo] = useState(null)
 
-  const load = useCallback(async () => {
-    setLoading(true)
+  const payQ = useCachedLoad('payments', async () => {
     const [{ data: ps }, { data: cs }] = await Promise.all([
       listPayments(),
       listCustomers({ includeArchived: true }),
     ])
-    setPayments(ps || [])
-    setCustomers(cs || [])
-    setLoading(false)
-  }, [])
-
-  useEffect(() => { load() }, [load])
+    return { payments: ps || [], customers: cs || [] }
+  })
+  const payments = payQ.data?.payments || []
+  const customers = payQ.data?.customers || []
+  const loading = payQ.loading
+  const load = payQ.reload
+  const setPayments = (updater) =>
+    payQ.setData(d => ({ ...(d || {}), payments: typeof updater === 'function' ? updater(d?.payments || []) : updater }))
 
   if (!canSeeMoney) {
     return (

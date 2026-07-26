@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useLang } from '../context/LanguageContext'
 import { useAuth } from './AuthContext'
 import { Modal, ConfirmDialog, Spinner, EmptyState, ViewToggle, GlanceList } from './ui'
+import { useCachedLoad } from './useCachedLoad'
 import {
   listCustomers, getTiffinTypes, getCustomerBilling, getCustomerRates,
   upsertCustomer, upsertCustomerBilling, saveCustomerRates,
@@ -14,9 +15,6 @@ export default function Customers() {
   const { isAdmin, canSeeMoney } = useAuth()
   const navigate = useNavigate()
 
-  const [customers, setCustomers] = useState([])
-  const [tiffinTypes, setTiffinTypes] = useState([])
-  const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [sort, setSort] = useState('latest')      // 'latest' | 'az'
   const [showArchived, setShowArchived] = useState(false)
@@ -24,18 +22,17 @@ export default function Customers() {
   const [editing, setEditing] = useState(null)     // customer obj, {} for new, or null
   const [confirmArchive, setConfirmArchive] = useState(null)
 
-  const load = useCallback(async () => {
-    setLoading(true)
+  const listQ = useCachedLoad(`customers:${showArchived ? 'all' : 'active'}`, async () => {
     const [{ data: cs }, { data: tt }] = await Promise.all([
       listCustomers({ includeArchived: showArchived }),
       getTiffinTypes(),
     ])
-    setCustomers(cs || [])
-    setTiffinTypes(tt || [])
-    setLoading(false)
-  }, [showArchived])
-
-  useEffect(() => { load() }, [load])
+    return { customers: cs || [], tiffinTypes: tt || [] }
+  })
+  const customers = listQ.data?.customers || []
+  const tiffinTypes = listQ.data?.tiffinTypes || []
+  const loading = listQ.loading
+  const load = listQ.reload
 
   const q = search.trim().toLowerCase()
   const filtered = customers.filter(c =>

@@ -3,6 +3,7 @@ import { PackageCheck } from 'lucide-react'
 import { useLang } from '../context/LanguageContext'
 import { useAuth } from './AuthContext'
 import { Spinner, EmptyState, ViewToggle, GlanceList } from './ui'
+import { useCachedLoad } from './useCachedLoad'
 import { getDailyEntries, setReturn, todayIST, addDays, formatDayLong } from './api'
 
 const SLOTS = [
@@ -25,21 +26,20 @@ export default function Returns() {
 
   const [date, setDate] = useState(today)
   const [slot, setSlot] = useState(defaultSlot())
-  const [entries, setEntries] = useState([])
-  const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [view, setView] = useState('details')
 
   // Staff may change returns for today + yesterday only; admin/owner any date.
   const canEdit = isAdmin || date === today || date === addDays(today, -1)
 
-  const load = useCallback(async () => {
-    setLoading(true)
+  // Shares the same cache as the Today page, so switching between them is instant.
+  const entriesQ = useCachedLoad(`entries:${date}:${slot}`, async () => {
     const { data } = await getDailyEntries(date, slot)
-    setEntries(data || [])
-    setLoading(false)
-  }, [date, slot])
-  useEffect(() => { load() }, [load])
+    return data || []
+  })
+  const entries = entriesQ.data || []
+  const setEntries = entriesQ.setData
+  const loading = entriesQ.loading
 
   const given = entries.reduce((s, e) => s + (e.quantity || 1), 0)
   const returned = entries.reduce((s, e) => s + (e.returned_qty || 0), 0)

@@ -3,6 +3,7 @@ import { useLang } from '../context/LanguageContext'
 import { useAuth } from './AuthContext'
 import { Modal, Spinner, EmptyState } from './ui'
 import { AttendanceGrid, attendanceTextLines } from './AttendanceGrid'
+import { useCachedLoad } from './useCachedLoad'
 import {
   getEntriesForCustomerRange, getCustomerRates, getTiffinTypes, listPayments,
   getBill, getBillLines, getPreviousClosing, saveBill, listBills, listCustomers,
@@ -284,18 +285,16 @@ export default function Bills() {
   const { t, lang } = useLang()
   const { canSeeMoney } = useAuth()
   const [ym, setYm] = useState(currentMonthIST())
-  const [bills, setBills] = useState([])
-  const [loading, setLoading] = useState(true)
   const [editorFor, setEditorFor] = useState(null)
   const [picking, setPicking] = useState(false)
 
-  const load = useCallback(async () => {
-    setLoading(true)
+  const q = useCachedLoad(`bills:${ym}`, async () => {
     const { data } = await listBills(ym)
-    setBills(data || [])
-    setLoading(false)
-  }, [ym])
-  useEffect(() => { load() }, [load])
+    return data || []
+  })
+  const bills = q.data || []
+  const loading = q.loading
+  const load = q.reload
 
   if (!canSeeMoney) {
     return <EmptyState text={t('Bills are only visible to the owner and admin.',

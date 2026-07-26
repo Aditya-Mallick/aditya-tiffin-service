@@ -3,6 +3,7 @@ import { GripVertical } from 'lucide-react'
 import { useLang } from '../context/LanguageContext'
 import { useAuth } from './AuthContext'
 import { Modal, ConfirmDialog, Spinner, EmptyState, UndoToast, ViewToggle, GlanceList } from './ui'
+import { useCachedLoad } from './useCachedLoad'
 import {
   getDailyEntries, getTiffinTypes, listCustomers, addEntry, addGuestEntry,
   getRecentGuestLabels, updateEntry, softRemoveEntry, restoreEntry, copyDailyList,
@@ -36,17 +37,12 @@ export default function DailyList() {
 
   const [date, setDate] = useState(today)
   const [slot, setSlot] = useState(defaultSlot())
-  const [entries, setEntries] = useState([])
-  const [customers, setCustomers] = useState([])
-  const [tiffinTypes, setTiffinTypes] = useState([])
-  const [loading, setLoading] = useState(true)
   const [adding, setAdding] = useState(false)
   const [copyOpen, setCopyOpen] = useState(false)
   const [confirmCopy, setConfirmCopy] = useState(null)   // { sourceDate, sourceSlot }
   const [undo, setUndo] = useState(null)     // { message, entryId }
   const [note, setNote] = useState('')       // transient status line
   const [entrySearch, setEntrySearch] = useState('')
-  const [guestLabels, setGuestLabels] = useState([])
   const [walkinFilter, setWalkinFilter] = useState('all')   // 'all' | 'walkin'
   const [typeFilter, setTypeFilter] = useState(null)        // tiffin_type_id / 'none' / null
   const [view, setView] = useState('glance')                // 'glance' | 'details'
@@ -63,24 +59,28 @@ export default function DailyList() {
 
   const canEdit = isAdmin || date === today
 
-  const loadRefs = useCallback(async () => {
+  // Cached: switching tabs or dates shows the last known list instantly.
+  const refs = useCachedLoad('daily-refs', async () => {
     const [{ data: cs }, { data: tt }, labels] = await Promise.all([
       listCustomers(), getTiffinTypes(), getRecentGuestLabels(),
     ])
-    setCustomers(cs || [])
-    setTiffinTypes(tt || [])
-    setGuestLabels(labels || [])
-  }, [])
+    return { customers: cs || [], tiffinTypes: tt || [], guestLabels: labels || [] }
+  })
+  const customers = refs.data?.customers || []
+  const tiffinTypes = refs.data?.tiffinTypes || []
+  const guestLabels = refs.data?.guestLabels || []
+  const setGuestLabels = (labels) =>
+    refs.setData(d => ({ ...(d || {}), guestLabels: labels }))
 
-  const loadEntries = useCallback(async () => {
-    setLoading(true)
+  const entriesQ = useCachedLoad(`entries:${date}:${slot}`, async () => {
     const { data } = await getDailyEntries(date, slot)
-    setEntries(data || [])
-    setLoading(false)
-  }, [date, slot])
-
-  useEffect(() => { loadRefs() }, [loadRefs])
-  useEffect(() => { loadEntries() }, [loadEntries])
+    return data || []
+  })
+  const entries = entriesQ.data || []
+  const setEntries = entriesQ.setData
+  const loading = entriesQ.loading
+  const loadEntries = entriesQ.reload
+  const loadRefs = refs.reload
 
   const defaultTiffinId = tiffinTypes[0]?.id
   const presentIds = new Set(entries.map(e => e.customer_id))
@@ -496,7 +496,8 @@ export default function DailyList() {
       {/* Add-customer modal */}
       {adding && (
         <AddCustomerModal
-          customers={customers.filter(c => !presentIds.has(c.id))}
+          customers={customers}
+          presentIds={presentIds}
           guestLabels={guestLabels}
           tiffinTypes={tiffinTypes}
           lang={lang}
@@ -530,7 +531,7 @@ export default function DailyList() {
   )
 }
 
-function AddCustomerModal({ customers, guestLabels, tiffinTypes, lang, defaultTypeId, onAdd, onAddGuest, onClose }) {
+function AddCustomerModal({ customers, presentIds, guestLabels, tiffinTypes, lang, defaultTypeId, onAdd, onAddGuest, onClose }) {
   const { t } = useLang()
   const [search, setSearch] = useState('')
   const [typeId, setTypeId] = useState(defaultTypeId || tiffinTypes[0]?.id)
@@ -540,7 +541,12 @@ function AddCustomerModal({ customers, guestLabels, tiffinTypes, lang, defaultTy
   const showPortion = !!selType?.has_portions
   const typed = search.trim()
   const q = typed.toLowerCase()
-  const list = customers.filter(c => !q || c.name.toLowerCase().includes(q) || (c.mobile || '').includes(q))
+  // Show everyone, but put those not yet in the list first so they're easy to tap.
+  const matches = customers.filter(c => !q || c.name.toLowerCase().includes(q) || (c.mobile || '').includes(q))
+  const list = [
+    ...matches.filter(c => !presentIds?.has(c.id)),
+    ...matches.filter(c => presentIds?.has(c.id)),
+  ]
   const labelMatches = (guestLabels || []).filter(l => q && l.toLowerCase().includes(q)).slice(0, 6)
   const exactLabel = (guestLabels || []).some(l => l.toLowerCase() === q)
 
@@ -579,15 +585,27 @@ function AddCustomerModal({ customers, guestLabels, tiffinTypes, lang, defaultTy
              className="w-full rounded-lg border border-gray-300 px-4 py-2.5 mb-3 focus:outline-none focus:ring-2 focus:ring-saffron" />
 
       <div className="h-64 overflow-y-auto space-y-2">
-        {/* Existing customers */}
-        {list.map(c => (
-          <button key={c.id} onClick={() => addCustomer(c.id)}
-                  className="w-full text-left bg-cream rounded-lg p-3 flex items-center justify-between">
-            <span><span className="font-medium text-gray-800">{c.name}</span>
-              <span className="text-gray-400 text-sm"> · {c.mobile}</span></span>
-            <span className="text-saffron font-bold">+</span>
-          </button>
-        ))}
+        {/* Existing customers — already-added ones are shown but locked */}
+        {list.map(c => {
+          const added = presentIds?.has(c.id)
+          return (
+            <button key={c.id} onClick={() => !added && addCustomer(c.id)} disabled={added}
+                    className={`w-full text-left rounded-lg p-3 flex items-center justify-between gap-2 ${
+                      added ? 'bg-tgreen/10 border border-tgreen/40' : 'bg-cream'}`}>
+              <span className="min-w-0">
+                <span className={`font-medium ${added ? 'text-tgreen-dark' : 'text-gray-800'}`}>{c.name}</span>
+                <span className="text-gray-400 text-sm"> · {c.mobile}</span>
+              </span>
+              {added ? (
+                <span className="shrink-0 text-[11px] font-semibold text-white bg-tgreen rounded-full px-2 py-0.5">
+                  ✓ {t('In list', 'सूची में')}
+                </span>
+              ) : (
+                <span className="text-saffron font-bold shrink-0">+</span>
+              )}
+            </button>
+          )
+        })}
 
         {/* Walk-in / hotel bed */}
         {(typed || labelMatches.length > 0) && (

@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useLang } from '../context/LanguageContext'
 import { useAuth } from './AuthContext'
 import { ConfirmDialog, Spinner, EmptyState } from './ui'
+import { useCachedLoad } from './useCachedLoad'
 import { CustomerStatement } from './Statement'
 import { CustomerForm } from './Customers'
 import { getCustomer, getTiffinTypes, archiveCustomer } from './api'
@@ -15,21 +16,19 @@ export default function CustomerDetail() {
   const { t } = useLang()
   const { isAdmin, canSeeMoney } = useAuth()
 
-  const [customer, setCustomer] = useState(null)
-  const [tiffinTypes, setTiffinTypes] = useState([])
-  const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState(false)
   const [confirmArchive, setConfirmArchive] = useState(false)
   const [stmtKey, setStmtKey] = useState(0)
 
-  const load = useCallback(async () => {
-    setLoading(true)
+  const q = useCachedLoad(`customer:${id}`, async () => {
     const [{ data: c }, { data: tt }] = await Promise.all([getCustomer(id), getTiffinTypes()])
-    setCustomer(c || null)
-    setTiffinTypes(tt || [])
-    setLoading(false)
-  }, [id])
-  useEffect(() => { load() }, [load])
+    return { customer: c || null, tiffinTypes: tt || [] }
+  })
+  const customer = q.data?.customer || null
+  const tiffinTypes = q.data?.tiffinTypes || []
+  const loading = q.loading
+  const setCustomer = (updater) =>
+    q.setData(d => ({ ...(d || {}), customer: typeof updater === 'function' ? updater(d?.customer) : updater }))
 
   const backToList = () => navigate('/manage/customers')
 
