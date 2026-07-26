@@ -6,6 +6,7 @@ import ManageLayout from './ManageLayout'
 import DailyList from './DailyList'
 import Returns from './Returns'
 import Customers from './Customers'
+import CustomerDetail from './CustomerDetail'
 import Payments from './Payments'
 import Bills from './Billing'
 import Menu from './Menu'
@@ -25,6 +26,7 @@ export default function ManageApp() {
             <Route index element={<DailyList />} />
             <Route path="returns" element={<Returns />} />
             <Route path="customers" element={<Customers />} />
+            <Route path="customers/:id" element={<CustomerDetail />} />
             <Route path="payments" element={<Payments />} />
             <Route path="bills" element={<Bills />} />
             <Route path="menu" element={<Menu />} />

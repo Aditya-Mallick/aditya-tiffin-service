@@ -37,7 +37,7 @@ export default function Menu() {
   return (
     <div className="space-y-4 pb-4">
       <div className="flex items-center justify-between">
-        <button onClick={() => navigate('/manage')} className="text-saffron-dark font-medium text-sm">
+        <button onClick={() => navigate('/manage/settings')} className="text-saffron-dark font-medium text-sm">
           ‹ {t('Back', 'वापस')}
         </button>
         <button onClick={() => setEditing({})}

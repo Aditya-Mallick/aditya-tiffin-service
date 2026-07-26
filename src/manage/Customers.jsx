@@ -1,8 +1,8 @@
 import { useEffect, useState, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useLang } from '../context/LanguageContext'
 import { useAuth } from './AuthContext'
 import { Modal, ConfirmDialog, Spinner, EmptyState, ViewToggle, GlanceList } from './ui'
-import { CustomerStatement } from './Statement'
 import {
   listCustomers, getTiffinTypes, getCustomerBilling, getCustomerRates,
   upsertCustomer, upsertCustomerBilling, saveCustomerRates,
@@ -12,6 +12,7 @@ import {
 export default function Customers() {
   const { t } = useLang()
   const { isAdmin, canSeeMoney } = useAuth()
+  const navigate = useNavigate()
 
   const [customers, setCustomers] = useState([])
   const [tiffinTypes, setTiffinTypes] = useState([])
@@ -22,8 +23,6 @@ export default function Customers() {
   const [view, setView] = useState('details')     // 'details' | 'glance'
   const [editing, setEditing] = useState(null)     // customer obj, {} for new, or null
   const [confirmArchive, setConfirmArchive] = useState(null)
-  const [viewing, setViewing] = useState(null)     // customer whose statement is open
-  const [stmtKey, setStmtKey] = useState(0)         // bump to refresh statement after edits
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -48,15 +47,7 @@ export default function Customers() {
 
   return (
     <div className="space-y-4">
-      {viewing ? (
-        <CustomerStatement
-          key={stmtKey}
-          customer={viewing}
-          isAdmin={isAdmin}
-          onBack={() => { setViewing(null); load() }}
-          onEdit={(c) => setEditing(c)}
-        />
-      ) : (
+      {(
         <>
           <div className="sticky top-0 z-20 bg-cream -mx-4 px-4 py-2 border-b border-black/5 flex items-center justify-between">
             <h2 className="text-lg font-bold text-gray-800">
@@ -112,7 +103,7 @@ export default function Customers() {
               {sorted.map((c, i) => (
                 <button
                   key={c.id}
-                  onClick={() => (canSeeMoney ? setViewing(c) : setEditing(c))}
+                  onClick={() => (canSeeMoney ? navigate(`/manage/customers/${c.id}`) : setEditing(c))}
                   className="w-full text-left bg-white rounded-xl shadow-card p-4 flex items-center gap-3"
                 >
                   <span className="text-base font-semibold text-gray-400 w-7 shrink-0 text-center">{i + 1}</span>
@@ -143,14 +134,7 @@ export default function Customers() {
           isAdmin={isAdmin}
           onArchive={(c) => { setEditing(null); setConfirmArchive(c) }}
           onClose={() => setEditing(null)}
-          onSaved={(saved) => {
-            setEditing(null)
-            load()
-            // If we're viewing this customer's statement, update its header
-            // and reload its figures immediately (no manual refresh needed).
-            if (saved && viewing && viewing.id === saved.id) setViewing(v => ({ ...v, ...saved }))
-            setStmtKey(k => k + 1)
-          }}
+          onSaved={() => { setEditing(null); load() }}
         />
       )}
 
@@ -173,7 +157,7 @@ export default function Customers() {
   )
 }
 
-function CustomerForm({ customer, tiffinTypes, canSeeMoney, isAdmin, onSaved, onClose, onArchive }) {
+export function CustomerForm({ customer, tiffinTypes, canSeeMoney, isAdmin, onSaved, onClose, onArchive }) {
   const { t, lang } = useLang()
   const isNew = !customer
   const readOnly = !isNew && !isAdmin   // staff may add new, but not edit existing

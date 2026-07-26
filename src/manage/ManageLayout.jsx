@@ -1,4 +1,5 @@
-import { Outlet, NavLink, Link } from 'react-router-dom'
+import { useEffect } from 'react'
+import { Outlet, NavLink, Link, useLocation } from 'react-router-dom'
 import { Settings as SettingsIcon } from 'lucide-react'
 import { useLang } from '../context/LanguageContext'
 import { useAuth } from './AuthContext'
@@ -13,6 +14,10 @@ export default function ManageLayout() {
   const { t, lang, setLang } = useLang()
   const { profile, role, signOut, canSeeMoney, isAdmin } = useAuth()
   const roleLabel = role ? t(ROLE_LABEL[role].en, ROLE_LABEL[role].hi) : ''
+  const { pathname } = useLocation()
+
+  // Start each page at the top instead of keeping the previous scroll position.
+  useEffect(() => { window.scrollTo(0, 0) }, [pathname])
 
   const tabs = [
     { to: '/manage', end: true, en: 'Today', hi: 'आज' },

@@ -64,6 +64,14 @@ export async function listCustomers({ includeArchived = false } = {}) {
   return q
 }
 
+export async function getCustomer(id) {
+  return supabase
+    .from('customers')
+    .select('id, name, mobile, address, active, deleted_at, created_at')
+    .eq('id', id)
+    .maybeSingle()
+}
+
 // Money info (admin only — RLS blocks staff automatically).
 export async function getCustomerBilling(customerId) {
   return supabase
