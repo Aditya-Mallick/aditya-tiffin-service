@@ -92,7 +92,9 @@ export function GlanceList({ items, drag }) {
           onPointerCancel={drag?.enabled ? drag.onUp : undefined}
           className={`flex items-center gap-2 px-3 py-2 select-none ${
             drag?.enabled ? 'cursor-grab active:cursor-grabbing' : ''} ${
-            drag?.draggingId === it.id ? 'bg-saffron/10 ring-2 ring-saffron rounded-lg' : ''}`}
+            // Guard against undefined === undefined matching every row.
+            drag?.draggingId != null && drag.draggingId === it.id
+              ? 'bg-saffron/10 ring-2 ring-saffron rounded-lg' : ''}`}
         >
           <span className="text-xs text-gray-400 w-6 text-right shrink-0">{i + 1}</span>
           <span className="text-sm text-gray-800 truncate min-w-0">{it.name}</span>

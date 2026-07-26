@@ -94,7 +94,7 @@ export default function Customers() {
           {loading ? <Spinner /> : filtered.length === 0 ? (
             <EmptyState text={t('No customers yet.', 'अभी कोई ग्राहक नहीं।')} />
           ) : view === 'glance' ? (
-            <GlanceList items={sorted.map(c => ({ name: c.name }))} />
+            <GlanceList items={sorted.map(c => ({ id: c.id, name: c.name }))} />
           ) : (
             <div className="space-y-2">
               {sorted.map((c, i) => (
