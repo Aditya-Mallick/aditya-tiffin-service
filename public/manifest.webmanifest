@@ -1,0 +1,21 @@
+{
+  "name": "Aditya Tiffin Service",
+  "short_name": "Tiffin",
+  "description": "Daily tiffin lists, returns, customers and billing for Aditya Tiffin Service.",
+  "start_url": "/manage",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#FFF8F0",
+  "theme_color": "#FF6B2B",
+  "lang": "en",
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Today's list", "short_name": "Today", "url": "/manage" },
+    { "name": "Tiffin returns", "short_name": "Returns", "url": "/manage/returns" }
+  ]
+}
