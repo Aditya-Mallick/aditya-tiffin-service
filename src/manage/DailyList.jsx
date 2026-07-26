@@ -347,7 +347,7 @@ export default function DailyList() {
             {[
               { k: 'latest', en: 'Latest', hi: 'नए' },
               { k: 'az', en: 'A–Z', hi: 'नाम' },
-              { k: 'custom', en: 'Manual', hi: 'मैनुअल' },
+              { k: 'custom', en: 'My order', hi: 'मेरा क्रम' },
             ].map(o => (
               <button key={o.k} onClick={() => setSort(o.k)}
                       className={`px-2.5 py-1.5 text-xs font-medium ${sort === o.k ? 'bg-saffron text-white' : 'bg-white text-gray-600'}`}>
@@ -359,13 +359,28 @@ export default function DailyList() {
         <ViewToggle view={view} setView={setView} />
       </div>
 
+      {sort === 'custom' && canEdit && (
+        <p className="text-xs text-gray-400 -mt-2">
+          {t('Drag the ⠿ handle to arrange this list in your own order.',
+             '⠿ पकड़कर खींचें और अपनी पसंद के क्रम में लगाएं।')}
+        </p>
+      )}
+
       {/* Entries (sorted A–Z, filtered by search) */}
       {loading ? <Spinner /> : entries.length === 0 ? (
         <EmptyState text={t('No customers in this list yet.', 'इस सूची में अभी कोई ग्राहक नहीं।')} />
       ) : shownEntries.length === 0 ? (
         <EmptyState text={t('No match in this list.', 'इस सूची में कोई मेल नहीं।')} />
       ) : view === 'glance' ? (
-        <GlanceList items={shownEntries.map(e => ({ name: nameOf(e), qty: e.quantity || 1 }))} />
+        <GlanceList
+          items={shownEntries.map(e => ({ id: e.id, name: nameOf(e), qty: e.quantity || 1 }))}
+          drag={{
+            enabled: canEdit,
+            draggingId,
+            rowRef: (id, el) => { if (el) rowEls.current[id] = el; else delete rowEls.current[id] },
+            onDown: dragStart, onMove: dragMove, onUp: dragEnd,
+          }}
+        />
       ) : (
         <>
           <div className="space-y-2">

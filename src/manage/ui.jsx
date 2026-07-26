@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { GripVertical } from 'lucide-react'
 import { useLang } from '../context/LanguageContext'
 
 // Generic centered modal.
@@ -76,13 +77,31 @@ export function ViewToggle({ view, setView }) {
 }
 
 // Dense, numbered, name-only list — for seeing the whole list at a glance.
-// items: [{ name, qty }] — shows "×N" right after the name when qty > 1.
-export function GlanceList({ items }) {
+// items: [{ id, name, qty }] — shows "×N" right after the name when qty > 1.
+// `drag` (optional) enables the same drag-to-reorder handle as the detail view.
+export function GlanceList({ items, drag }) {
   if (!items || items.length === 0) return null
   return (
     <div className="bg-white rounded-xl shadow-card divide-y divide-gray-100">
       {items.map((it, i) => (
-        <div key={i} className="flex items-baseline gap-2 px-3 py-1.5">
+        <div
+          key={it.id ?? i}
+          ref={drag?.rowRef ? (el) => drag.rowRef(it.id, el) : undefined}
+          className={`flex items-center gap-1 px-2 py-1.5 ${drag?.draggingId === it.id ? 'ring-2 ring-saffron rounded-lg' : ''}`}
+        >
+          {drag?.enabled && (
+            <button
+              onPointerDown={(e) => drag.onDown(e, it.id)}
+              onPointerMove={drag.onMove}
+              onPointerUp={drag.onUp}
+              onPointerCancel={drag.onUp}
+              aria-label="Drag to reorder"
+              className="shrink-0 px-0.5 text-gray-300 cursor-grab active:cursor-grabbing select-none"
+              style={{ touchAction: 'none' }}
+            >
+              <GripVertical size={16} />
+            </button>
+          )}
           <span className="text-xs text-gray-400 w-6 text-right shrink-0">{i + 1}</span>
           <span className="text-sm text-gray-800 truncate min-w-0">{it.name}</span>
           {it.qty > 1 && <span className="text-xs font-semibold text-saffron-dark shrink-0">×{it.qty}</span>}
