@@ -64,6 +64,16 @@ export async function listCustomers({ includeArchived = false } = {}) {
   return q
 }
 
+// Outstanding amount for every customer at once (admin only via RLS).
+// Returns a map { customer_id: due } — positive means they owe.
+export async function getCustomerDues(ym) {
+  const { data, error } = await supabase.rpc('customer_dues', { p_month: `${ym}-01` })
+  if (error) return {}
+  const map = {}
+  ;(data || []).forEach(r => { map[r.customer_id] = Number(r.due || 0) })
+  return map
+}
+
 export async function getCustomer(id) {
   return supabase
     .from('customers')

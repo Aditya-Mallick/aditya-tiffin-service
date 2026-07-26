@@ -99,6 +99,11 @@ export function GlanceList({ items, drag }) {
           <span className="text-xs text-gray-400 w-6 text-right shrink-0">{i + 1}</span>
           <span className="text-sm text-gray-800 truncate min-w-0">{it.name}</span>
           {it.qty > 1 && <span className="text-xs font-semibold text-saffron-dark shrink-0">×{it.qty}</span>}
+          {it.note && (
+            <span className="ml-auto shrink-0 text-xs font-bold text-white bg-red-600 rounded-full px-2 py-0.5">
+              {it.note}
+            </span>
+          )}
         </div>
       ))}
     </div>

@@ -8,6 +8,7 @@ import {
   listCustomers, getTiffinTypes, getCustomerBilling, getCustomerRates,
   upsertCustomer, upsertCustomerBilling, saveCustomerRates,
   archiveCustomer, restoreCustomer, canonicalMobile,
+  getCustomerDues, currentMonthIST, formatINR,
 } from './api'
 
 export default function Customers() {
@@ -22,25 +23,34 @@ export default function Customers() {
   const [editing, setEditing] = useState(null)     // customer obj, {} for new, or null
   const [confirmArchive, setConfirmArchive] = useState(null)
 
-  const listQ = useCachedLoad(`customers:${showArchived ? 'all' : 'active'}`, async () => {
-    const [{ data: cs }, { data: tt }] = await Promise.all([
+  const listQ = useCachedLoad(`customers:${showArchived ? 'all' : 'active'}:${canSeeMoney ? 'money' : 'plain'}`, async () => {
+    const [{ data: cs }, { data: tt }, dues] = await Promise.all([
       listCustomers({ includeArchived: showArchived }),
       getTiffinTypes(),
+      canSeeMoney ? getCustomerDues(currentMonthIST()) : Promise.resolve({}),
     ])
-    return { customers: cs || [], tiffinTypes: tt || [] }
+    return { customers: cs || [], tiffinTypes: tt || [], dues: dues || {} }
   })
   const customers = listQ.data?.customers || []
   const tiffinTypes = listQ.data?.tiffinTypes || []
+  const dues = listQ.data?.dues || {}
+  const dueOf = (c) => Number(dues[c.id] || 0)
   const loading = listQ.loading
   const load = listQ.reload
 
   const q = search.trim().toLowerCase()
   const filtered = customers.filter(c =>
     !q || c.name.toLowerCase().includes(q) || (c.mobile || '').includes(q))
-  const sorted = [...filtered].sort((a, b) =>
+  const bySort = [...filtered].sort((a, b) =>
     sort === 'latest'
       ? (b.created_at || '').localeCompare(a.created_at || '')   // newest first
       : a.name.localeCompare(b.name))                            // A–Z
+  // Customers who owe money come first (largest due first), so they're the
+  // first thing seen and can be billed or settled right away.
+  const owing = bySort.filter(c => dueOf(c) > 0).sort((a, b) => dueOf(b) - dueOf(a))
+  const rest = bySort.filter(c => dueOf(c) <= 0)
+  const sorted = [...owing, ...rest]
+  const totalDue = owing.reduce((s, c) => s + dueOf(c), 0)
 
   return (
     <div className="space-y-4">
@@ -50,6 +60,12 @@ export default function Customers() {
             <h2 className="text-lg font-bold text-gray-800">
               {t('Customers', 'ग्राहक')}
               <span className="ml-2 text-sm font-normal text-gray-400">({customers.length})</span>
+              {canSeeMoney && owing.length > 0 && (
+                <span className="block text-xs font-normal text-red-600">
+                  {t(`${owing.length} owe ${formatINR(totalDue)}`,
+                     `${owing.length} पर ${formatINR(totalDue)} बकाया`)}
+                </span>
+              )}
             </h2>
             <button
               onClick={() => setEditing({})}
@@ -94,7 +110,10 @@ export default function Customers() {
           {loading ? <Spinner /> : filtered.length === 0 ? (
             <EmptyState text={t('No customers yet.', 'अभी कोई ग्राहक नहीं।')} />
           ) : view === 'glance' ? (
-            <GlanceList items={sorted.map(c => ({ id: c.id, name: c.name }))} />
+            <GlanceList items={sorted.map(c => ({
+              id: c.id, name: c.name,
+              note: dueOf(c) > 0 ? formatINR(dueOf(c)) : null,
+            }))} />
           ) : (
             <div className="space-y-2">
               {sorted.map((c, i) => (
@@ -115,6 +134,11 @@ export default function Customers() {
                     </p>
                     <p className="text-xs text-gray-500">{c.mobile}{c.address ? ` · ${c.address}` : ''}</p>
                   </div>
+                  {dueOf(c) > 0 && (
+                    <span className="shrink-0 text-xs font-bold text-white bg-red-600 rounded-full px-2 py-1">
+                      {formatINR(dueOf(c))}
+                    </span>
+                  )}
                   <span className="text-gray-300 shrink-0">›</span>
                 </button>
               ))}
