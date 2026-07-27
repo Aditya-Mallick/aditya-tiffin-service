@@ -153,20 +153,19 @@ export function BillEditor({ customer, ym, onClose, onSaved }) {
     const L = [t('Aditya Tiffin Service', 'आदित्य टिफिन सेवा'),
                t('Bill', 'बिल') + ' — ' + monthLabel(ym, lang), customer.name, '']
     const op = balanceParts(openingSigned)
-    if (op.kind === 'due') L.push(t('Previous balance', 'पिछला बकाया') + ': ' + formatINR(op.amount) + ' ' + t('due', 'बकाया'))
-    else if (op.kind === 'advance') L.push(t('Previous advance', 'पिछला अग्रिम') + ': ' + formatINR(op.amount))
-    L.push(t('This month:', 'इस महीने:'))
+    if (op.kind === 'due') L.push(t('Previous balance due', 'पिछला बकाया') + ': ' + formatINR(op.amount))
+    else if (op.kind === 'advance') L.push(t('Advance with us', 'हमारे पास अग्रिम') + ': ' + formatINR(op.amount))
+    L.push('', t('This month:', 'इस महीने:'))
     linesPayload().forEach(l => L.push(`  ${l.label || ''}: ${l.qty} × ${formatINR(l.rate)} = ${formatINR(l.total)}`))
-    L.push(t('Charges', 'शुल्क') + ': ' + formatINR(charges))
-    if (paymentsMonth) L.push(t('Paid', 'भुगतान') + ': − ' + formatINR(paymentsMonth))
+    L.push(t('Total charges', 'कुल शुल्क') + ': ' + formatINR(charges))
+    if (paymentsMonth) L.push(t('Payment received', 'प्राप्त भुगतान') + ': ' + formatINR(paymentsMonth))
     L.push('————————')
     if (closingParts.kind === 'due') L.push(t('Balance due', 'कुल बकाया') + ': ' + formatINR(closingParts.amount))
     else if (closingParts.kind === 'advance') L.push(t('Advance balance', 'अग्रिम शेष') + ': ' + formatINR(closingParts.amount))
     else L.push(t('Fully settled', 'पूरा भुगतान'))
     const att = attendanceTextLines(rawEntries, allTypes, ym, lang)
     if (att.length) {
-      L.push('', t('Day-wise (M/A/E = morning/afternoon/evening, X = absent):',
-                   'दिन-वार (M/A/E = सुबह/दोपहर/शाम, X = अनुपस्थित):'))
+      L.push('', t('Day-wise details:', 'दिन-वार विवरण:'))
       att.forEach(l => L.push(l))
     }
     L.push('', t('Thank you!', 'धन्यवाद!'))
@@ -262,7 +261,7 @@ export function BillEditor({ customer, ym, onClose, onSaved }) {
                  : formatINR(balanceParts(opening).amount) + ' ' +
                    (balanceParts(opening).kind === 'advance' ? t('advance', 'अग्रिम') : t('due', 'बकाया'))} />
           <Row label={t('Charges this month', 'इस महीने शुल्क')} value={formatINR(charges)} />
-          <Row label={t('Payments this month', 'इस महीने भुगतान')} value={'− ' + formatINR(paymentsMonth)} />
+          <Row label={t('Payment received', 'प्राप्त भुगतान')} value={formatINR(paymentsMonth)} />
           <div className="flex justify-between border-t border-gray-200 pt-1 items-center">
             <span className="font-semibold text-gray-800">
               {closingParts.kind === 'advance' ? t('Advance balance', 'अग्रिम शेष') : t('Balance due', 'कुल बकाया')}

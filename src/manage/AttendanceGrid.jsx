@@ -14,35 +14,50 @@ function shortItem(tt, portion, lang) {
   return name
 }
 
-// Plain-text version of the attendance, for the WhatsApp bill.
-// e.g. "16 Wed — M:Veg  E:Chicken½"  (X = absent)
+// Plain-text attendance for the WhatsApp bill — written for the customer to
+// read, e.g. "15 July (Wed) — Morning: Veg, Evening: Chicken (Half)".
+// Slots they didn't take are left out; a day with nothing says "Not taken".
 export function attendanceTextLines(entries, types, ym, lang) {
+  const hi = lang === 'hi'
   const typeById = Object.fromEntries((types || []).map(tt => [tt.id, tt]))
-  const byDate = {}; const usedSlots = new Set(); let firstDay = 99
+  const byDate = {}
+  let firstDay = 99
   for (const e of entries || []) {
     const day = Number(e.entry_date.slice(8, 10))
-    firstDay = Math.min(firstDay, day); usedSlots.add(e.slot)
+    firstDay = Math.min(firstDay, day)
     ;(byDate[day] = byDate[day] || {})[e.slot] = e
   }
-  const order = SLOT_ORDER.filter(s => usedSlots.has(s.key)).map(s => s.key)
-  if (!entries || entries.length === 0 || order.length === 0) return []
+  if (!entries || entries.length === 0) return []
+
   const { end } = monthBounds(ym)
   const daysInMonth = Number(end.slice(8, 10))
   const endDay = ym === currentMonthIST() ? Number(todayIST().slice(8, 10)) : daysInMonth
   const [yy, mm] = ym.split('-').map(Number)
-  const letter = { morning: 'M', afternoon: 'A', evening: 'E' }
-  const codeFor = (e) => {
-    if (!e) return 'X'
+  const locale = hi ? 'hi-IN' : 'en-GB'
+  const monthName = new Date(Date.UTC(yy, mm - 1, 1))
+    .toLocaleDateString(locale, { month: 'long', timeZone: 'UTC' })
+
+  const itemName = (e) => {
     const tt = typeById[e.tiffin_type_id]
-    if (!tt) return '?'
-    return shortItem(tt, e.portion, lang).replace(/\s+/g, '')
+    if (!tt) return hi ? 'टिफिन' : 'Tiffin'
+    let name = hi && tt.name_hi ? tt.name_hi : tt.name_en
+    name = name.replace(/\s*tiffin$/i, '').replace(/\s*टिफिन$/, '')
+    if (tt.has_portions) {
+      name += e.portion === 'full' ? (hi ? ' (फुल)' : ' (Full)') : (hi ? ' (हाफ)' : ' (Half)')
+    }
+    if ((e.quantity || 1) > 1) name += ` × ${e.quantity}`
+    return name
   }
+
   const lines = []
   for (let d = firstDay; d <= Math.min(endDay, daysInMonth); d++) {
-    const wd = new Date(Date.UTC(yy, mm - 1, d))
-      .toLocaleDateString(lang === 'hi' ? 'hi-IN' : 'en-GB', { weekday: 'short', timeZone: 'UTC' })
-    const parts = order.map(s => `${letter[s]}:${codeFor(byDate[d]?.[s])}`)
-    lines.push(`${d} ${wd} — ${parts.join('  ')}`)
+    const weekday = new Date(Date.UTC(yy, mm - 1, d))
+      .toLocaleDateString(locale, { weekday: 'short', timeZone: 'UTC' })
+    const parts = SLOT_ORDER
+      .filter(s => byDate[d]?.[s.key])
+      .map(s => `${hi ? s.hi : s.en}: ${itemName(byDate[d][s.key])}`)
+    const detail = parts.length ? parts.join(', ') : (hi ? 'नहीं लिया' : 'Not taken')
+    lines.push(`${d} ${monthName} (${weekday}) — ${detail}`)
   }
   return lines
 }

@@ -126,7 +126,7 @@ export function CustomerStatement({ customer, onBack, onEdit, isAdmin }) {
           <div className="bg-white rounded-xl shadow-card p-4 space-y-2 text-sm">
             <Row label={t('Opening balance', 'शुरुआती बकाया')} value={balWords(calc.opening, t)} />
             <Row label={t('Charges this month', 'इस महीने का शुल्क')} value={formatINR(calc.charges)} />
-            <Row label={t('Payments this month', 'इस महीने भुगतान')} value={'− ' + formatINR(calc.paymentsMonth)} />
+            <Row label={t('Payment received', 'प्राप्त भुगतान')} value={formatINR(calc.paymentsMonth)} />
             <div className="border-t border-gray-200 pt-2 flex justify-between items-center">
               <span className="font-semibold text-gray-800">{t('Current balance', 'मौजूदा बकाया')}</span>
               <span className={`text-xl font-bold ${balanceParts(calc.balance).kind === 'due' ? 'text-red-600' : 'text-tgreen-dark'}`}>
