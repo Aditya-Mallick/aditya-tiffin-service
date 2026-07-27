@@ -130,32 +130,38 @@ export function attendanceTextLines(entries, types, ym, lang) {
       dateLabel(d, o),
       ...columns.map(s => cellFor(byDate[d]?.[s.key], o)),
     ])
-    const header = ['Date', ...columns.map(s => o.shortHead ? SHORT_HEAD[s.key] : s.en)]
+    const ULTRA_HEAD = { morning: 'M', afternoon: 'N', evening: 'E' }
+    const header = o.ultraHead
+      ? ['Dt', ...columns.map(s => ULTRA_HEAD[s.key])]
+      : ['Date', ...columns.map(s => o.shortHead ? SHORT_HEAD[s.key] : s.en)]
     const widths = header.map((h, i) =>
       Math.max(dispWidth(h), ...rows.map(r => dispWidth(String(r[i])))))
     // Pad by display width (emoji count as two cells), and join with '' — the
-    // padding already supplies the gutter.
+    // padding already supplies the gutter (1 space when space is tight).
+    const gutter = o.tightGutter ? 1 : 2
     const fmt = (cells) => cells
-      .map((c, i) => (i === cells.length - 1 ? String(c) : padDisp(String(c), widths[i] + 2)))
+      .map((c, i) => (i === cells.length - 1 ? String(c) : padDisp(String(c), widths[i] + gutter)))
       .join('')
       .trimEnd()
     const lines = [fmt(header), ...rows.map(fmt)]
     return { lines, width: Math.max(...lines.map(dispWidth)), opts: o }
   }
 
-  // A day must never wrap onto a second line. A phone shows roughly this many
-  // monospace characters, so try progressively more compact forms and use the
-  // first that fits — full words whenever they do.
+  // A day must never wrap onto a second line. An iPhone-sized WhatsApp bubble
+  // fits only ~30 monospace characters (confirmed on a real phone), so try
+  // progressively more compact forms and use the first that fits.
   // Ordered least-harmful first: shorten headings, then drop the weekday
-  // (the date keeps its month), then abbreviate items, then the portion.
-  const MAX_WIDTH = 34
+  // (the date keeps its month), then abbreviate items, then the portion,
+  // then tighten the gutters.
+  const MAX_WIDTH = 30
   const levels = [
     {},
     { shortHead: true },
     { shortHead: true, noWeekday: true },
     { shortHead: true, noWeekday: true, shortName: true },
     { shortHead: true, noWeekday: true, shortName: true, shortPortion: true },
-    { shortHead: true, noWeekday: true, shortName: true, shortPortion: true, noMonth: true },
+    { shortHead: true, noWeekday: true, shortName: true, shortPortion: true, tightGutter: true },
+    { shortHead: true, noWeekday: true, shortName: true, shortPortion: true, tightGutter: true, noMonth: true },
   ]
   let out = build(levels[0])
   for (const lvl of levels) {
@@ -166,7 +172,7 @@ export function attendanceTextLines(entries, types, ym, lang) {
   // Last resort (e.g. a big quantity in all three slots): shorten the item
   // names further, keeping portion and quantity intact, so a row can't wrap.
   if (out.width > MAX_WIDTH) {
-    const last = levels[levels.length - 1]
+    const last = { ...levels[levels.length - 1], ultraHead: true }
     for (let nameMax = 6; nameMax >= 2; nameMax--) {
       out = build({ ...last, nameMax })
       if (out.width <= MAX_WIDTH) break
