@@ -164,13 +164,20 @@ export function BillEditor({ customer, ym, onClose, onSaved }) {
     else if (closingParts.kind === 'advance') L.push(t('Advance balance', 'अग्रिम शेष') + ': ' + formatINR(closingParts.amount))
     else L.push(t('Fully settled', 'पूरा भुगतान'))
     const att = attendanceTextLines(rawEntries, allTypes, ym, lang)
-    if (att.length) {
+    if (att?.lines?.length) {
       L.push('', t('Day-wise details:', 'दिन-वार विवरण:'))
       // ``` keeps WhatsApp's monospace font so the columns stay aligned.
       L.push('```')
-      att.forEach(l => L.push(l))
+      att.lines.forEach(l => L.push(l))
       L.push('```')
       L.push(t('X = not taken', 'X = नहीं लिया'))
+      if (att.abbreviated) {
+        L.push(t('Chkn = Chicken · Mutn = Mutton', 'Chkn = चिकन · Mutn = मटन'))
+      }
+      if (att.notes.length) {
+        L.push('', t('Also:', 'साथ ही:'))
+        att.notes.forEach(n => L.push('  ' + n))
+      }
     }
     L.push('', t('Thank you!', 'धन्यवाद!'))
     return L.join('\n')

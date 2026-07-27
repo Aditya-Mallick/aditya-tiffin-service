@@ -56,22 +56,58 @@ export function attendanceTextLines(entries, types, ym, lang) {
     return name
   }
 
-  // Build the rows first so the columns can be padded to a common width.
-  const rows = []
-  for (let d = firstDay; d <= Math.min(endDay, daysInMonth); d++) {
-    const weekday = new Date(Date.UTC(yy, mm - 1, d))
-      .toLocaleDateString(locale, { weekday: 'short', timeZone: 'UTC' })
-    rows.push([`${d} ${weekday}`, ...slots.map(s => cellFor(byDate[d]?.[s.key]))])
-  }
-  const header = ['Date', ...slots.map(s => s.en)]   // ASCII, to keep columns aligned
-  const widths = header.map((h, i) =>
-    Math.max(h.length, ...rows.map(r => String(r[i]).length)))
-  const fmt = (cells) => cells
-    .map((c, i) => (i === cells.length - 1 ? String(c) : String(c).padEnd(widths[i] + 1)))
-    .join(' ')
-    .trimEnd()
+  const dayList = []
+  for (let d = firstDay; d <= Math.min(endDay, daysInMonth); d++) dayList.push(d)
+  const dateLabel = (d) => `${d} ` + new Date(Date.UTC(yy, mm - 1, d))
+    .toLocaleDateString(locale, { weekday: 'short', timeZone: 'UTC' })
 
-  return [fmt(header), ...rows.map(fmt)]
+  // A slot used only once or twice doesn't deserve a whole column — it would
+  // just be a column of X's. Those days are listed underneath instead.
+  const useCount = (s) => dayList.filter(d => byDate[d]?.[s.key]).length
+  let columns = slots.filter(s => useCount(s) >= 3)
+  if (columns.length === 0) columns = slots
+  const asideSlots = slots.filter(s => !columns.includes(s))
+
+  const build = (compact) => {
+    const cell = (e) => {
+      const v = cellFor(e)
+      return compact
+        ? v.replace(/^Chicken/, 'Chkn').replace(/^Mutton/, 'Mutn').replace(/^Special/, 'Spcl')
+        : v
+    }
+    const rows = dayList.map(d => [dateLabel(d), ...columns.map(s => cell(byDate[d]?.[s.key]))])
+    const header = ['Date', ...columns.map(s => s.en)]
+    const widths = header.map((h, i) =>
+      Math.max(h.length, ...rows.map(r => String(r[i]).length)))
+    const fmt = (cells) => cells
+      .map((c, i) => (i === cells.length - 1 ? String(c) : String(c).padEnd(widths[i] + 1)))
+      .join(' ')
+      .trimEnd()
+    const lines = [fmt(header), ...rows.map(fmt)]
+    return { lines, width: Math.max(...lines.map(l => l.length)) }
+  }
+
+  // Keep every day on a single line: a phone shows roughly this many
+  // monospace characters before wrapping.
+  const MAX_WIDTH = 34
+  let out = build(false)
+  let compacted = false
+  if (out.width > MAX_WIDTH) { out = build(true); compacted = true }
+
+  // Days whose only meal was in a rarely-used slot.
+  const notes = []
+  for (const s of asideSlots) {
+    for (const d of dayList) {
+      const e = byDate[d]?.[s.key]
+      if (e) notes.push(`${dateLabel(d)} — ${s.en}: ${cellFor(e)}`)
+    }
+  }
+
+  return {
+    lines: out.lines,
+    notes,
+    abbreviated: compacted,
+  }
 }
 
 // Day-by-day attendance: which slot, what was taken, or ✕ if absent.
