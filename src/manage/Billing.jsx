@@ -170,8 +170,7 @@ export function BillEditor({ customer, ym, onClose, onSaved }) {
       L.push('```')
       att.forEach(l => L.push(l))
       L.push('```')
-      L.push(t('✓ = Veg · - = not taken · ½ = half · F = full',
-               '✓ = वेज · - = नहीं लिया · ½ = हाफ · F = फुल'))
+      L.push(t('X = not taken', 'X = नहीं लिया'))
     }
     L.push('', t('Thank you!', 'धन्यवाद!'))
     return L.join('\n')

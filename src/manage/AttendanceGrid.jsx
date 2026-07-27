@@ -40,16 +40,18 @@ export function attendanceTextLines(entries, types, ym, lang) {
   const daysInMonth = Number(end.slice(8, 10))
   const endDay = ym === currentMonthIST() ? Number(todayIST().slice(8, 10)) : daysInMonth
   const [yy, mm] = ym.split('-').map(Number)
-  const locale = hi ? 'hi-IN' : 'en-GB'
+  const locale = 'en-GB'   // ASCII weekday names, so the columns stay aligned
 
+  // The table is deliberately ASCII/English, in both languages: characters like
+  // ✓, ½ and Devanagari are not single-width in WhatsApp's monospace font, so
+  // mixing them in knocks the columns out of line. The rest of the bill still
+  // follows the chosen language.
   const cellFor = (e) => {
-    if (!e) return '-'                                   // not taken
+    if (!e) return 'X'                                   // not taken
     const tt = typeById[e.tiffin_type_id]
     if (!tt) return '?'
-    if (tt.name_en.trim().toLowerCase() === 'veg tiffin') return '✓'
-    let name = hi && tt.name_hi ? tt.name_hi : tt.name_en
-    name = name.replace(/\s*tiffin$/i, '').replace(/\s*टिफिन$/, '')
-    if (tt.has_portions) name += e.portion === 'full' ? ' F' : ' ½'
+    let name = String(tt.name_en || '').replace(/\s*tiffin$/i, '')
+    if (tt.has_portions) name += e.portion === 'full' ? ' Full' : ' Half'
     if ((e.quantity || 1) > 1) name += ` x${e.quantity}`
     return name
   }
@@ -61,7 +63,7 @@ export function attendanceTextLines(entries, types, ym, lang) {
       .toLocaleDateString(locale, { weekday: 'short', timeZone: 'UTC' })
     rows.push([`${d} ${weekday}`, ...slots.map(s => cellFor(byDate[d]?.[s.key]))])
   }
-  const header = [hi ? 'तारीख' : 'Date', ...slots.map(s => hi ? s.hi : s.en)]
+  const header = ['Date', ...slots.map(s => s.en)]   // ASCII, to keep columns aligned
   const widths = header.map((h, i) =>
     Math.max(h.length, ...rows.map(r => String(r[i]).length)))
   const fmt = (cells) => cells
