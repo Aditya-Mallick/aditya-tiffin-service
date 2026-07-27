@@ -459,7 +459,15 @@ export async function saveBill(bill, lines) {
     .select('id').single()
   if (error) return { error }
   const billId = data.id
-  await supabase.from('bill_lines').delete().eq('bill_id', billId)
+  // Replace the old lines. Verify they actually went — if a permission rule
+  // ever blocks this, the insert below would silently duplicate the bill.
+  const { error: dErr } = await supabase.from('bill_lines').delete().eq('bill_id', billId)
+  if (dErr) return { error: dErr }
+  const { count } = await supabase.from('bill_lines')
+    .select('id', { count: 'exact', head: true }).eq('bill_id', billId)
+  if (count) {
+    return { error: { message: 'Could not clear the old bill items. Please run the latest database update (0012).' } }
+  }
   if (lines?.length) {
     const { error: lErr } = await supabase.from('bill_lines').insert(
       lines.map(l => ({
