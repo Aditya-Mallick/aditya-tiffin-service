@@ -435,7 +435,15 @@ export async function getBillLines(billId) {
 
 // The balance carried into this month = previous month's closing bill, else
 // the customer's opening_balance. Positive = customer owes, negative = credit.
+// Balance carried into `ym`. Uses last month's saved bill when there is one,
+// otherwise everything still owed from before this month (so a month whose
+// bill was never created is not silently treated as ₹0).
 export async function getPreviousClosing(customerId, ym) {
+  const { data, error } = await supabase.rpc('customer_opening', {
+    p_customer: customerId, p_month: `${ym}-01`,
+  })
+  if (!error && data != null) return Number(data)
+  // Fallback if the migration hasn't been run yet.
   const prev = addMonths(ym, -1)
   const { data: prevBill } = await supabase.from('bills')
     .select('closing_balance').eq('customer_id', customerId)

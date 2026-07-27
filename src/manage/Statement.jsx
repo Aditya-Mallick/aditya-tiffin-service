@@ -7,7 +7,7 @@ import { AttendanceGrid } from './AttendanceGrid'
 import {
   getEntriesForCustomerRange, getCustomerRates, getTiffinTypes, getCustomerBilling,
   listPayments, monthBounds, currentMonthIST, addMonths, monthLabel, computeCharges, formatINR,
-  balanceParts, formatDate, softRemovePayment,
+  balanceParts, formatDate, softRemovePayment, getPreviousClosing,
 } from './api'
 
 // A signed balance as clear words (no minus): "₹120 due" / "₹80 advance" / "Settled".
@@ -44,12 +44,13 @@ export function CustomerStatement({ customer, onBack, onEdit, isAdmin }) {
     async function load() {
       setLoading(true)
       const { start, end } = monthBounds(ym)
-      const [entriesRes, ratesRes, typesRes, billingRes, paymentsRes] = await Promise.all([
+      const [entriesRes, ratesRes, typesRes, billingRes, paymentsRes, opening] = await Promise.all([
         getEntriesForCustomerRange(customer.id, start, end),
         getCustomerRates(customer.id),
         getTiffinTypes(),
         getCustomerBilling(customer.id),
         listPayments({ customerId: customer.id }),
+        getPreviousClosing(customer.id, ym),   // carries unbilled months forward
       ])
       if (!on) return
 
@@ -62,7 +63,6 @@ export function CustomerStatement({ customer, onBack, onEdit, isAdmin }) {
       }))
       const monthPays = (paymentsRes.data || []).filter(p => p.paid_on >= start && p.paid_on <= end)
       const paymentsMonth = monthPays.reduce((s, p) => s + Number(p.amount || 0), 0)
-      const opening = billingRes.data?.opening_balance ?? 0
 
       setPlan(billingRes.data || null)
       setMonthPayments(monthPays)
