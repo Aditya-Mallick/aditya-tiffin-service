@@ -166,7 +166,12 @@ export function BillEditor({ customer, ym, onClose, onSaved }) {
     const att = attendanceTextLines(rawEntries, allTypes, ym, lang)
     if (att.length) {
       L.push('', t('Day-wise details:', 'दिन-वार विवरण:'))
+      // ``` keeps WhatsApp's monospace font so the columns stay aligned.
+      L.push('```')
       att.forEach(l => L.push(l))
+      L.push('```')
+      L.push(t('✓ = Veg · - = not taken · ½ = half · F = full',
+               '✓ = वेज · - = नहीं लिया · ½ = हाफ · F = फुल'))
     }
     L.push('', t('Thank you!', 'धन्यवाद!'))
     return L.join('\n')

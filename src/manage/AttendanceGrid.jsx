@@ -14,52 +14,62 @@ function shortItem(tt, portion, lang) {
   return name
 }
 
-// Plain-text attendance for the WhatsApp bill — written for the customer to
-// read, e.g. "15 July (Wed) — Morning: Veg, Evening: Chicken (Half)".
-// Slots they didn't take are left out; a day with nothing says "Not taken".
+// The same day-by-day grid as the app, as an aligned monospace table for the
+// WhatsApp bill. Wrap the result in ``` fences and WhatsApp keeps the columns
+// lined up, so it reads like a compact table instead of long sentences:
+//
+//   Date     Morning  Evening
+//   1 Wed    ✓        Chicken ½
+//   6 Mon    ✓        -
 export function attendanceTextLines(entries, types, ym, lang) {
   const hi = lang === 'hi'
   const typeById = Object.fromEntries((types || []).map(tt => [tt.id, tt]))
   const byDate = {}
+  const usedSlots = new Set()
   let firstDay = 99
   for (const e of entries || []) {
     const day = Number(e.entry_date.slice(8, 10))
     firstDay = Math.min(firstDay, day)
+    usedSlots.add(e.slot)
     ;(byDate[day] = byDate[day] || {})[e.slot] = e
   }
-  if (!entries || entries.length === 0) return []
+  const slots = SLOT_ORDER.filter(s => usedSlots.has(s.key))
+  if (!entries || entries.length === 0 || slots.length === 0) return []
 
   const { end } = monthBounds(ym)
   const daysInMonth = Number(end.slice(8, 10))
   const endDay = ym === currentMonthIST() ? Number(todayIST().slice(8, 10)) : daysInMonth
   const [yy, mm] = ym.split('-').map(Number)
   const locale = hi ? 'hi-IN' : 'en-GB'
-  const monthName = new Date(Date.UTC(yy, mm - 1, 1))
-    .toLocaleDateString(locale, { month: 'long', timeZone: 'UTC' })
 
-  const itemName = (e) => {
+  const cellFor = (e) => {
+    if (!e) return '-'                                   // not taken
     const tt = typeById[e.tiffin_type_id]
-    if (!tt) return hi ? 'टिफिन' : 'Tiffin'
+    if (!tt) return '?'
+    if (tt.name_en.trim().toLowerCase() === 'veg tiffin') return '✓'
     let name = hi && tt.name_hi ? tt.name_hi : tt.name_en
     name = name.replace(/\s*tiffin$/i, '').replace(/\s*टिफिन$/, '')
-    if (tt.has_portions) {
-      name += e.portion === 'full' ? (hi ? ' (फुल)' : ' (Full)') : (hi ? ' (हाफ)' : ' (Half)')
-    }
-    if ((e.quantity || 1) > 1) name += ` × ${e.quantity}`
+    if (tt.has_portions) name += e.portion === 'full' ? ' F' : ' ½'
+    if ((e.quantity || 1) > 1) name += ` x${e.quantity}`
     return name
   }
 
-  const lines = []
+  // Build the rows first so the columns can be padded to a common width.
+  const rows = []
   for (let d = firstDay; d <= Math.min(endDay, daysInMonth); d++) {
     const weekday = new Date(Date.UTC(yy, mm - 1, d))
       .toLocaleDateString(locale, { weekday: 'short', timeZone: 'UTC' })
-    const parts = SLOT_ORDER
-      .filter(s => byDate[d]?.[s.key])
-      .map(s => `${hi ? s.hi : s.en}: ${itemName(byDate[d][s.key])}`)
-    const detail = parts.length ? parts.join(', ') : (hi ? 'नहीं लिया' : 'Not taken')
-    lines.push(`${d} ${monthName} (${weekday}) — ${detail}`)
+    rows.push([`${d} ${weekday}`, ...slots.map(s => cellFor(byDate[d]?.[s.key]))])
   }
-  return lines
+  const header = [hi ? 'तारीख' : 'Date', ...slots.map(s => hi ? s.hi : s.en)]
+  const widths = header.map((h, i) =>
+    Math.max(h.length, ...rows.map(r => String(r[i]).length)))
+  const fmt = (cells) => cells
+    .map((c, i) => (i === cells.length - 1 ? String(c) : String(c).padEnd(widths[i] + 1)))
+    .join(' ')
+    .trimEnd()
+
+  return [fmt(header), ...rows.map(fmt)]
 }
 
 // Day-by-day attendance: which slot, what was taken, or ✕ if absent.
