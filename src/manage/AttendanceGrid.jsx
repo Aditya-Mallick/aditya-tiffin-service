@@ -118,12 +118,10 @@ export function attendanceTextLines(entries, types, ym, lang) {
     return s
   }
 
-  // A slot used only once or twice doesn't deserve a whole column — it would
-  // just be a column of X's. Those days are listed underneath instead.
-  const useCount = (s) => dayList.filter(d => byDate[d]?.[s.key]).length
-  let columns = slots.filter(s => useCount(s) >= 3)
-  if (columns.length === 0) columns = slots
-  const asideSlots = slots.filter(s => !columns.includes(s))
+  // Every slot the customer used appears as a column — splitting a rarely
+  // used slot out of the table read as confusing, so the table stays whole
+  // and the width ladder below absorbs the extra column.
+  const columns = slots
 
   const SHORT_HEAD = { morning: 'Morn', afternoon: 'Noon', evening: 'Eve' }
 
@@ -175,18 +173,8 @@ export function attendanceTextLines(entries, types, ym, lang) {
     }
   }
 
-  // Days whose only meal was in a rarely-used slot.
-  const notes = []
-  for (const s of asideSlots) {
-    for (const d of dayList) {
-      const e = byDate[d]?.[s.key]
-      if (e) notes.push(`${dateLabel(d)} — ${s.en}: ${cellFor(e)}`)
-    }
-  }
-
   return {
     lines: out.lines,
-    notes,
     // Legend hints for whatever shortening was needed (usually none).
     abbreviated: Boolean(out.opts.shortName),
     portionShort: Boolean(out.opts.shortPortion),

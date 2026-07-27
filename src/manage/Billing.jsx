@@ -178,10 +178,6 @@ export function BillEditor({ customer, ym, onClose, onSaved }) {
       if (att.portionShort) {
         L.push(t('F = full plate', 'F = फुल प्लेट'))
       }
-      if (att.notes.length) {
-        L.push('', t('Also:', 'साथ ही:'))
-        att.notes.forEach(n => L.push('  ' + n))
-      }
     }
     L.push('', t('Thank you!', 'धन्यवाद!'))
     return L.join('\n')
