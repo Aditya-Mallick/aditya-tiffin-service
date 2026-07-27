@@ -32,8 +32,10 @@ export function BillEditor({ customer, ym, onClose, onSaved }) {
   const { t, lang } = useLang()
   const [loading, setLoading] = useState(true)
   const [lines, setLines] = useState([])       // {key, tiffin_type_id, label, qty, rate}
-  const [dir, setDir] = useState('due')         // previous balance: 'due' | 'advance'
-  const [openingAmt, setOpeningAmt] = useState('0')
+  // Previous balance is derived (last month's bill, else everything still
+  // owed before this month) — never typed in, so it can't drift.
+  const [opening, setOpening] = useState(0)
+  const [computedLines, setComputedLines] = useState([])   // straight from the daily lists
   const [paymentsMonth, setPaymentsMonth] = useState(0)
   const [notes, setNotes] = useState('')
   const [busy, setBusy] = useState(false)
@@ -70,34 +72,36 @@ export function BillEditor({ customer, ym, onClose, onSaved }) {
         .reduce((s, p) => s + Number(p.amount || 0), 0)
       setPaymentsMonth(payMonth)
 
+      // What the daily lists say right now — used for a fresh bill, and to
+      // offer a refresh if a saved bill has since gone out of date.
+      const c = computeCharges(entriesRes.data || [], overrides, types)
+      const fresh = c.lines.map((l, i) => ({
+        key: 'c' + i,
+        tiffin_type_id: l.tiffin_type_id,
+        label: lang === 'hi' && l.name_hi ? l.name_hi : l.name_en,
+        qty: String(l.qty),
+        rate: String(l.rate),
+      }))
+      setComputedLines(fresh)
+
       const bill = billRes.data
-      let initLines, openingSigned
+      let initLines = fresh
       if (bill) {
         const { data: bl } = await getBillLines(bill.id)
         if (!on) return
-        initLines = (bl || []).map((l, i) => ({
-          key: l.id || 'l' + i,
-          tiffin_type_id: l.tiffin_type_id,
-          label: l.label || typeName(l.tiffin_type_id) || '',
-          qty: String(l.qty ?? 1),
-          rate: String(l.unit_price ?? 0),
-        }))
-        openingSigned = Number(bill.opening_advance || 0)
+        if (bl?.length) {
+          initLines = bl.map((l, i) => ({
+            key: l.id || 'l' + i,
+            tiffin_type_id: l.tiffin_type_id,
+            label: l.label || typeName(l.tiffin_type_id) || '',
+            qty: String(l.qty ?? 1),
+            rate: String(l.unit_price ?? 0),
+          }))
+        }
         setNotes(bill.notes || '')
-      } else {
-        const c = computeCharges(entriesRes.data || [], overrides, types)
-        initLines = c.lines.map((l, i) => ({
-          key: 'l' + i,
-          tiffin_type_id: l.tiffin_type_id,
-          label: lang === 'hi' && l.name_hi ? l.name_hi : l.name_en,
-          qty: String(l.qty),
-          rate: String(l.rate),
-        }))
-        openingSigned = Number(prevClosing || 0)
       }
-      const bp = balanceParts(openingSigned)
-      setDir(bp.kind === 'advance' ? 'advance' : 'due')
-      setOpeningAmt(String(bp.amount))
+      // Always the live figure, even for a saved bill.
+      setOpening(Number(prevClosing || 0))
       setLines(initLines)
       setLoading(false)
     }
@@ -105,8 +109,11 @@ export function BillEditor({ customer, ym, onClose, onSaved }) {
     return () => { on = false }
   }, [customer.id, ym, lang])
 
-  const charges = lines.reduce((s, l) => s + (Number(l.qty) || 0) * (Number(l.rate) || 0), 0)
-  const openingSigned = dir === 'advance' ? -Number(openingAmt || 0) : Number(openingAmt || 0)
+  const sumOf = (ls) => ls.reduce((s, l) => s + (Number(l.qty) || 0) * (Number(l.rate) || 0), 0)
+  const charges = sumOf(lines)
+  const computedCharges = sumOf(computedLines)
+  const outOfDate = Math.abs(computedCharges - charges) > 0.005
+  const openingSigned = opening
   const totalDue = openingSigned + charges
   const closing = totalDue - paymentsMonth
   const closingParts = balanceParts(closing)
@@ -207,26 +214,37 @@ export function BillEditor({ customer, ym, onClose, onSaved }) {
           <div className="flex justify-between text-sm font-semibold border-t border-gray-100 mt-2 pt-2">
             <span>{t('Charges this month', 'इस महीने शुल्क')}</span><span>{formatINR(charges)}</span>
           </div>
-        </div>
 
-        {/* Previous balance: Owes / Advance + amount */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">{t('Previous balance', 'पिछला बकाया')}</label>
-          <div className="flex gap-2">
-            <div className="flex rounded-lg overflow-hidden border border-gray-300 shrink-0">
-              <button onClick={() => setDir('due')}
-                      className={`px-3 py-2 text-sm ${dir === 'due' ? 'bg-red-600 text-white' : 'bg-white text-gray-600'}`}>
-                {t('Owes', 'बकाया')}
-              </button>
-              <button onClick={() => setDir('advance')}
-                      className={`px-3 py-2 text-sm ${dir === 'advance' ? 'bg-tgreen text-white' : 'bg-white text-gray-600'}`}>
-                {t('Advance', 'अग्रिम')}
+          {outOfDate && (
+            <div className="mt-2 rounded-lg bg-amber-50 border border-amber-200 p-2">
+              <p className="text-xs text-amber-800">
+                {t(`The daily lists now add up to ${formatINR(computedCharges)}. This saved bill still shows ${formatINR(charges)}.`,
+                   `रोज़ की सूची अब ${formatINR(computedCharges)} बनती है। इस सेव बिल में ${formatINR(charges)} है।`)}
+              </p>
+              <button onClick={() => setLines(computedLines.map(l => ({ ...l, key: l.key + '-r' })))}
+                      className="mt-1 text-xs font-semibold text-saffron-dark">
+                {t('Update items from daily lists', 'रोज़ की सूची से अपडेट करें')}
               </button>
             </div>
-            <input type="number" inputMode="numeric" value={openingAmt} onChange={e => setOpeningAmt(e.target.value)}
-                   className="flex-1 min-w-0 rounded-lg border border-gray-300 px-3 py-2 text-right" />
+          )}
+        </div>
+
+        {/* Previous balance — worked out automatically, not typed in */}
+        <div className="bg-cream rounded-lg p-3">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium text-gray-700">{t('Previous balance', 'पिछला बकाया')}</span>
+            <span className={`text-sm font-bold ${
+              balanceParts(opening).kind === 'due' ? 'text-red-600' : 'text-tgreen-dark'}`}>
+              {balanceParts(opening).kind === 'settled'
+                ? t('Settled', 'पूरा')
+                : formatINR(balanceParts(opening).amount) + ' ' +
+                  (balanceParts(opening).kind === 'advance' ? t('advance', 'अग्रिम') : t('due', 'बकाया'))}
+            </span>
           </div>
-          <p className="text-xs text-gray-400 mt-1">{t('Carried from last month.', 'पिछले महीने से।')}</p>
+          <p className="text-xs text-gray-400 mt-1">
+            {t('Carried forward automatically. To correct it, edit the customer’s opening balance or their payments.',
+               'अपने-आप आगे लाया गया। बदलने के लिए ग्राहक का शुरुआती बकाया या भुगतान सुधारें।')}
+          </p>
         </div>
 
         {/* Note */}
@@ -239,7 +257,10 @@ export function BillEditor({ customer, ym, onClose, onSaved }) {
         {/* Totals */}
         <div className="bg-white border border-gray-200 rounded-lg p-3 text-sm space-y-1">
           <Row label={t('Previous balance', 'पिछला बकाया')}
-               value={formatINR(Number(openingAmt || 0)) + ' ' + (dir === 'advance' ? t('advance', 'अग्रिम') : t('due', 'बकाया'))} />
+               value={balanceParts(opening).kind === 'settled'
+                 ? t('Settled', 'पूरा')
+                 : formatINR(balanceParts(opening).amount) + ' ' +
+                   (balanceParts(opening).kind === 'advance' ? t('advance', 'अग्रिम') : t('due', 'बकाया'))} />
           <Row label={t('Charges this month', 'इस महीने शुल्क')} value={formatINR(charges)} />
           <Row label={t('Payments this month', 'इस महीने भुगतान')} value={'− ' + formatINR(paymentsMonth)} />
           <div className="flex justify-between border-t border-gray-200 pt-1 items-center">
