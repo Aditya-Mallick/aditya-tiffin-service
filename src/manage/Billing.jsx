@@ -170,9 +170,13 @@ export function BillEditor({ customer, ym, onClose, onSaved }) {
       L.push('```')
       att.lines.forEach(l => L.push(l))
       L.push('```')
-      L.push(t('X = not taken', 'X = नहीं लिया'))
+      L.push(t('✓ = Veg tiffin · ✕ = not taken',
+               '✓ = वेज टिफिन · ✕ = नहीं लिया'))
       if (att.abbreviated) {
         L.push(t('Chkn = Chicken · Mutn = Mutton', 'Chkn = चिकन · Mutn = मटन'))
+      }
+      if (att.portionShort) {
+        L.push(t('F = full plate', 'F = फुल प्लेट'))
       }
       if (att.notes.length) {
         L.push('', t('Also:', 'साथ ही:'))
