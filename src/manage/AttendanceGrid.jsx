@@ -59,7 +59,8 @@ export function attendanceTextLines(entries, types, ym, lang) {
     firstDay = Math.min(firstDay, day)
     lastDay = Math.max(lastDay, day)
     usedSlots.add(e.slot)
-    ;(byDate[day] = byDate[day] || {})[e.slot] = e
+    const slotMap = (byDate[day] = byDate[day] || {})
+    ;(slotMap[e.slot] = slotMap[e.slot] || []).push(e)
   }
   const slots = SLOT_ORDER.filter(s => usedSlots.has(s.key))
   if (!entries || entries.length === 0 || slots.length === 0) return []
@@ -79,13 +80,13 @@ export function attendanceTextLines(entries, types, ym, lang) {
   // single-width in WhatsApp's monospace font and would skew the columns.
   // ✅ / ❌ are safe because they are defined as double-width and padded as
   // two cells (see dispWidth).
-  const cellFor = (e, o = {}) => {
-    if (!e) return '✕'                                   // not taken
+  const oneEntry = (e, o = {}) => {
     const tt = typeById[e.tiffin_type_id]
     if (!tt) return '?'
-    // Veg is the everyday case — a tick reads faster than the word.
-    if (!tt.has_portions && /^veg\b/i.test(String(tt.name_en || '')) && (e.quantity || 1) === 1) {
-      return '✓'
+    // Veg is the everyday case — ticks read faster than the word, and like
+    // the manual notebook, two tiffins = two ticks (✓✓).
+    if (!tt.has_portions && /^veg\b/i.test(String(tt.name_en || '')) && (e.quantity || 1) <= 4) {
+      return '✓'.repeat(e.quantity || 1)
     }
     let name = String(tt.name_en || '').replace(/\s*tiffin$/i, '')
     if (o.shortName) {
@@ -102,6 +103,11 @@ export function attendanceTextLines(entries, types, ym, lang) {
     }
     if ((e.quantity || 1) > 1) name += ` x${e.quantity}`
     return name
+  }
+  // A slot may hold several entries (e.g. veg + chicken the same evening).
+  const cellFor = (list, o = {}) => {
+    if (!list || list.length === 0) return '✕'           // not taken
+    return list.map(e => oneEntry(e, o)).join('+')
   }
 
   const dayList = []
@@ -193,6 +199,8 @@ export function AttendanceGrid({ entries, types, ym, lang }) {
   const { t } = useLang()
   const typeById = Object.fromEntries((types || []).map(tt => [tt.id, tt]))
 
+  // A slot can hold several entries (e.g. veg + chicken the same evening),
+  // so collect them all — showing just one hid the rest.
   const byDate = {}
   const usedSlots = new Set()
   let firstDay = 99
@@ -200,7 +208,8 @@ export function AttendanceGrid({ entries, types, ym, lang }) {
     const day = Number(e.entry_date.slice(8, 10))
     firstDay = Math.min(firstDay, day)
     usedSlots.add(e.slot)
-    ;(byDate[day] = byDate[day] || {})[e.slot] = e
+    const slotMap = (byDate[day] = byDate[day] || {})
+    ;(slotMap[e.slot] = slotMap[e.slot] || []).push(e)
   }
   const slots = SLOT_ORDER.filter(s => usedSlots.has(s.key))
 
@@ -218,12 +227,33 @@ export function AttendanceGrid({ entries, types, ym, lang }) {
   const weekday = (d) => new Date(Date.UTC(yy, mm - 1, d))
     .toLocaleDateString(lang === 'hi' ? 'hi-IN' : 'en-GB', { weekday: 'short', timeZone: 'UTC' })
 
-  const Cell = ({ e }) => {
-    if (!e) return <span className="text-red-400">✕</span>
-    const tt = typeById[e.tiffin_type_id]
-    if (!tt) return <span className="text-gray-300">•</span>
-    if (tt.name_en.trim().toLowerCase() === 'veg tiffin') return <span className="text-tgreen font-bold">✓</span>
-    return <span className="text-gray-700">{shortItem(tt, e.portion, lang)}</span>
+  // One slot may hold several entries; quantities above 1 are shown as ×N.
+  const Cell = ({ list }) => {
+    if (!list || list.length === 0) return <span className="text-red-400">✕</span>
+    return (
+      <span className="inline-flex flex-wrap items-center justify-center gap-x-1">
+        {list.map((e, i) => {
+          const tt = typeById[e.tiffin_type_id]
+          const qty = e.quantity || 1
+          const isVeg = tt && tt.name_en.trim().toLowerCase() === 'veg tiffin'
+          let body, qtyMark = null
+          if (!tt) body = <span className="text-gray-300">•</span>
+          else if (isVeg && qty <= 4) {
+            // Like the manual notebook: two tiffins = two ticks (✓✓).
+            body = <span className="text-tgreen font-bold tracking-tight">{'✓'.repeat(qty)}</span>
+          } else {
+            body = <span className="text-gray-700">{isVeg ? 'Veg' : shortItem(tt, e.portion, lang)}</span>
+            if (qty > 1) qtyMark = <span className="font-semibold text-saffron-dark"> ×{qty}</span>
+          }
+          return (
+            <span key={e.id || i} className="whitespace-nowrap">
+              {i > 0 && <span className="text-gray-300">+ </span>}
+              {body}{qtyMark}
+            </span>
+          )
+        })}
+      </span>
+    )
   }
 
   return (
@@ -244,7 +274,7 @@ export function AttendanceGrid({ entries, types, ym, lang }) {
                 <td className="py-1.5 pr-2 text-gray-600 whitespace-nowrap">{d} {weekday(d)}</td>
                 {slots.map(s => (
                   <td key={s.key} className="text-center py-1.5 px-1">
-                    <Cell e={byDate[d]?.[s.key]} />
+                    <Cell list={byDate[d]?.[s.key]} />
                   </td>
                 ))}
               </tr>
