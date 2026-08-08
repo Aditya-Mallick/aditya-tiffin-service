@@ -7,6 +7,7 @@ import { useCachedLoad } from './useCachedLoad'
 import {
   listPayments, addPayment, updatePayment, softRemovePayment, restorePayment,
   listCustomers, todayIST, formatINR, formatDate,
+  monthBounds, currentMonthIST, addMonths, monthLabel,
 } from './api'
 
 const METHODS = [
@@ -21,6 +22,7 @@ export default function Payments() {
   const { canSeeMoney } = useAuth()
 
   const [search, setSearch] = useState('')
+  const [ym, setYm] = useState(currentMonthIST())
   const [recording, setRecording] = useState(false)
   const [editing, setEditing] = useState(null)
   const [undo, setUndo] = useState(null)
@@ -46,16 +48,22 @@ export default function Payments() {
     )
   }
 
-  // Search by customer name, mobile, amount or note.
+  // Month first, then search by customer name, mobile, amount or note.
+  const { start: mStart, end: mEnd } = monthBounds(ym)
+  const monthPayments = payments.filter(p => p.paid_on >= mStart && p.paid_on <= mEnd)
   const q = search.trim().toLowerCase()
   const shown = q
-    ? payments.filter(p =>
+    ? monthPayments.filter(p =>
         (p.customers?.name || '').toLowerCase().includes(q) ||
         (p.customers?.mobile || '').includes(q) ||
         String(p.amount || '').includes(q) ||
         (p.note || '').toLowerCase().includes(q))
-    : payments
-  const totalPaid = shown.reduce((s, p) => s + Number(p.amount || 0), 0)
+    : monthPayments
+  // "Other" records are adjustments, not real money received — listed but
+  // not counted in the total.
+  const counted = shown.filter(p => p.method !== 'Other')
+  const totalPaid = counted.reduce((s, p) => s + Number(p.amount || 0), 0)
+  const otherCount = shown.length - counted.length
 
   async function handleRemove(p) {
     await softRemovePayment(p.id)
@@ -79,6 +87,15 @@ export default function Payments() {
         </button>
       </div>
 
+      {/* Month navigator */}
+      <div className="flex items-center justify-between">
+        <button onClick={() => setYm(m => addMonths(m, -1))}
+                className="px-3 py-1.5 rounded-lg bg-white shadow-card text-gray-600">‹</button>
+        <span className="font-semibold text-gray-800">{monthLabel(ym, lang)}</span>
+        <button onClick={() => setYm(m => addMonths(m, 1))}
+                className="px-3 py-1.5 rounded-lg bg-white shadow-card text-gray-600">›</button>
+      </div>
+
       <input
         value={search}
         onChange={(e) => setSearch(e.target.value)}
@@ -86,18 +103,23 @@ export default function Payments() {
         className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-saffron"
       />
 
-      {/* Totals */}
+      {/* Totals for the selected month */}
       <div className="bg-white rounded-xl shadow-card p-3 text-center">
         <p className="text-xs text-gray-500">
           {q ? t('Total shown', 'दिखाया गया कुल') : t('Total received', 'कुल प्राप्त')}
-          <span className="text-gray-400"> · {shown.length}</span>
+          <span className="text-gray-400"> · {counted.length}</span>
         </p>
         <p className="text-lg font-bold text-tgreen-dark">{formatINR(totalPaid)}</p>
+        {otherCount > 0 && (
+          <p className="text-[11px] text-gray-400 mt-0.5">
+            {t(`${otherCount} "Other" record(s) not counted`, `${otherCount} "अन्य" रिकॉर्ड नहीं गिने गए`)}
+          </p>
+        )}
       </div>
       </div>
 
-      {loading ? <Spinner /> : payments.length === 0 ? (
-        <EmptyState text={t('No payments recorded yet.', 'अभी कोई भुगतान दर्ज नहीं।')} />
+      {loading ? <Spinner /> : monthPayments.length === 0 ? (
+        <EmptyState text={t('No payments in this month.', 'इस महीने कोई भुगतान नहीं।')} />
       ) : shown.length === 0 ? (
         <EmptyState text={t('No matching payments.', 'कोई मेल खाता भुगतान नहीं।')} />
       ) : (
