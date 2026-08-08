@@ -6,7 +6,7 @@ import { AttendanceGrid, attendanceTextLines } from './AttendanceGrid'
 import { useCachedLoad } from './useCachedLoad'
 import {
   getEntriesForCustomerRange, getCustomerRates, getTiffinTypes, listPayments,
-  getBill, getBillLines, getPreviousClosing, saveBill, listBills, listCustomers,
+  getBill, getPreviousClosing, saveBill, listBills, listCustomers,
   computeCharges, monthBounds, currentMonthIST, addMonths, monthLabel, formatINR, balanceParts,
 } from './api'
 
@@ -35,7 +35,6 @@ export function BillEditor({ customer, ym, onClose, onSaved }) {
   // Previous balance is derived (last month's bill, else everything still
   // owed before this month) — never typed in, so it can't drift.
   const [opening, setOpening] = useState(0)
-  const [computedLines, setComputedLines] = useState([])   // straight from the daily lists
   const [paymentsMonth, setPaymentsMonth] = useState(0)
   const [notes, setNotes] = useState('')
   const [busy, setBusy] = useState(false)
@@ -63,17 +62,14 @@ export function BillEditor({ customer, ym, onClose, onSaved }) {
       const types = typesRes.data || []
       setRawEntries(entriesRes.data || [])
       setAllTypes(types)
-      const typeName = (id) => {
-        const tt = types.find(x => x.id === id)
-        return tt ? (lang === 'hi' && tt.name_hi ? tt.name_hi : tt.name_en) : ''
-      }
       const payMonth = (paymentsRes.data || [])
         .filter(p => p.paid_on >= start && p.paid_on <= end)
         .reduce((s, p) => s + Number(p.amount || 0), 0)
       setPaymentsMonth(payMonth)
 
-      // What the daily lists say right now — used for a fresh bill, and to
-      // offer a refresh if a saved bill has since gone out of date.
+      // The items always come fresh from the daily lists — the bill mirrors
+      // reality automatically, no manual "update" step. (Line edits made here
+      // are for this bill before sending; reopening recomputes from the lists.)
       const c = computeCharges(entriesRes.data || [], overrides, types)
       const fresh = c.lines.map((l, i) => ({
         key: 'c' + i,
@@ -82,37 +78,19 @@ export function BillEditor({ customer, ym, onClose, onSaved }) {
         qty: String(l.qty),
         rate: String(l.rate),
       }))
-      setComputedLines(fresh)
 
       const bill = billRes.data
-      let initLines = fresh
-      if (bill) {
-        const { data: bl } = await getBillLines(bill.id)
-        if (!on) return
-        if (bl?.length) {
-          initLines = bl.map((l, i) => ({
-            key: l.id || 'l' + i,
-            tiffin_type_id: l.tiffin_type_id,
-            label: l.label || typeName(l.tiffin_type_id) || '',
-            qty: String(l.qty ?? 1),
-            rate: String(l.unit_price ?? 0),
-          }))
-        }
-        setNotes(bill.notes || '')
-      }
+      if (bill) setNotes(bill.notes || '')
       // Always the live figure, even for a saved bill.
       setOpening(Number(prevClosing || 0))
-      setLines(initLines)
+      setLines(fresh)
       setLoading(false)
     }
     load()
     return () => { on = false }
   }, [customer.id, ym, lang])
 
-  const sumOf = (ls) => ls.reduce((s, l) => s + (Number(l.qty) || 0) * (Number(l.rate) || 0), 0)
-  const charges = sumOf(lines)
-  const computedCharges = sumOf(computedLines)
-  const outOfDate = Math.abs(computedCharges - charges) > 0.005
+  const charges = lines.reduce((s, l) => s + (Number(l.qty) || 0) * (Number(l.rate) || 0), 0)
   const openingSigned = opening
   const totalDue = openingSigned + charges
   const closing = totalDue - paymentsMonth
@@ -224,19 +202,6 @@ export function BillEditor({ customer, ym, onClose, onSaved }) {
           <div className="flex justify-between text-sm font-semibold border-t border-gray-100 mt-2 pt-2">
             <span>{t('Charges this month', 'इस महीने शुल्क')}</span><span>{formatINR(charges)}</span>
           </div>
-
-          {outOfDate && (
-            <div className="mt-2 rounded-lg bg-amber-50 border border-amber-200 p-2">
-              <p className="text-xs text-amber-800">
-                {t(`The daily lists now add up to ${formatINR(computedCharges)}. This saved bill still shows ${formatINR(charges)}.`,
-                   `रोज़ की सूची अब ${formatINR(computedCharges)} बनती है। इस सेव बिल में ${formatINR(charges)} है।`)}
-              </p>
-              <button onClick={() => setLines(computedLines.map(l => ({ ...l, key: l.key + '-r' })))}
-                      className="mt-1 text-xs font-semibold text-saffron-dark">
-                {t('Update items from daily lists', 'रोज़ की सूची से अपडेट करें')}
-              </button>
-            </div>
-          )}
         </div>
 
         {/* Previous balance — worked out automatically, not typed in */}
